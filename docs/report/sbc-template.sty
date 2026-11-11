@@ -1,0 +1,75 @@
+% Minimal project-local scaffold for the SBC single-column article layout.
+% Replace it with an instructor-provided template if the course supplies one.
+
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{sbc-template}[2026/11/11 SBC report scaffold]
+
+\RequirePackage[a4paper,top=3.5cm,bottom=2.5cm,left=3cm,right=3cm]{geometry}
+\RequirePackage{times}
+\RequirePackage[font={footnotesize,sf,bf},labelsep=period,margin=0.8cm]{caption}
+
+\setlength{\parindent}{1.27cm}
+\setlength{\parskip}{6pt}
+\pagestyle{empty}
+
+\makeatletter
+
+\newcommand{\inst}[1]{\ensuremath{^{#1}}}
+\newcommand{\nextinstitute}{\\\medskip}
+\newcommand{\email}[1]{\\[-2pt]\texttt{\small #1}}
+
+\newcommand{\address}[1]{\gdef\@address{#1}}
+\gdef\@address{}
+
+\renewcommand{\section}{%
+  \@startsection{section}{1}{\z@}%
+    {-12pt}%
+    {6pt}%
+    {\fontsize{13}{17}\selectfont\bfseries}%
+}
+
+\renewcommand{\subsection}{%
+  \@startsection{subsection}{2}{\z@}%
+    {-12pt}%
+    {6pt}%
+    {\normalsize\bfseries}%
+}
+
+\renewcommand{\subsubsection}{%
+  \@startsection{subsubsection}{3}{\z@}%
+    {-12pt}%
+    {6pt}%
+    {\normalsize\itshape}%
+}
+
+\def\@maketitle{%
+  \newpage
+  \begin{center}%
+    {\fontsize{16}{20}\selectfont\bfseries\@title\par}%
+    \vspace{12pt}%
+    {\normalsize\bfseries\@author\par}%
+    \vspace{12pt}%
+    {\normalsize\@address\par}%
+  \end{center}%
+  \vspace{12pt}%
+}
+
+\renewenvironment{abstract}{%
+  \list{}{%
+    \setlength{\leftmargin}{0.8cm}%
+    \setlength{\rightmargin}{0.8cm}%
+  }%
+  \item[\textbf{\textit{Abstract.}}]\itshape
+}{\endlist}
+
+\newenvironment{resumo}{%
+  \list{}{%
+    \setlength{\leftmargin}{0.8cm}%
+    \setlength{\rightmargin}{0.8cm}%
+  }%
+  \item[\textbf{\textit{Resumo.}}]\itshape
+}{\endlist}
+
+\makeatother
+
+\endinput
