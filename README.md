@@ -80,10 +80,10 @@ e no [índice de instâncias TSP](https://comopt.ifi.uni-heidelberg.de/software/
 - NetworkX ou igraph apenas como bibliotecas de apoio, com profiling dos
   gargalos computacionais em nível de subrotina.
 
-O trabalho pode ser desenvolvido por grupos de até três estudantes. Ferramentas
-de IA generativa são permitidas, mas seu uso deve ser documentado, e o grupo
-deve compreender, auditar criticamente e defender tecnicamente a implementação
-entregue.
+Este trabalho é desenvolvido individualmente por Chrystian Melo
+(`chrystian1@ufmg.br`). Ferramentas de IA generativa são permitidas, mas seu uso
+deve ser documentado, e o autor deve compreender, auditar criticamente e
+defender tecnicamente a implementação entregue.
 
 ## Instalação
 
