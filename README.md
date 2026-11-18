@@ -7,10 +7,10 @@ exatos e aproximativos para o Problema do Caixeiro Viajante (TSP) geométrico.
 
 O [enunciado do TP2](docs/assignment/tp2.pdf) está disponível neste repositório.
 
-> **Estado atual:** o repositório contém somente a infraestrutura inicial. Os
-> algoritmos, as heurísticas, o processamento de dados, os experimentos e os
-> resultados descritos abaixo são requisitos do trabalho e ainda não foram
-> implementados.
+> **Estado atual:** leitura TSPLIB `EUC_2D`, Branch-and-Bound exato best-first,
+> cold start trivial, instrumentação por subrotina e executor reproduzível com
+> timeout, checkpoints, retomada e processos isolados. As demais estratégias de
+> warm-start e os algoritmos aproximativos entram pela interface já preparada.
 
 ## Objetivos
 
@@ -103,17 +103,48 @@ python scripts/tasks.py setup
 
 ## Execução
 
-O ponto de entrada provisório imprime `Hello, World!`. No Windows PowerShell:
+O solver recebe o caminho de uma instância `.tsp`. No Windows PowerShell:
 
 ```powershell
-.\scripts\run.bat
+.\scripts\run.bat data\instances\example_crossing.tsp
 ```
 
 No Linux ou macOS:
 
 ```bash
-python scripts/tasks.py run
+python scripts/tasks.py run data/instances/example_crossing.tsp
 ```
+
+A rota exibida usa os IDs originais e repete a origem no final. O custo de
+toda rota inclui essa aresta de retorno.
+
+### Automação dos experimentos
+
+O executor aceita arquivos `.tsp` e/ou pastas, usa 1.800 segundos por execução
+por padrão e salva um CSV depois de cada processo isolado:
+
+```powershell
+.\scripts\run_experiments.bat data\instances `
+  --output-dir experiments\results\trivial --repetitions 3
+```
+
+Executar novamente o mesmo comando retoma o lote e pula resultados `optimal`
+ou `timeout`; `--rerun` força a repetição sem criar linha duplicada. A descrição
+dos tempos, memória, status, arquivos e comandos de validação está em
+[experiments/README.md](experiments/README.md).
+
+### Contadores do Branch-and-Bound
+
+Cada estado visitado incrementa exatamente um contador:
+
+- `nós podados` aumenta quando o limite inferior do estado é maior ou igual ao
+  custo da melhor rota conhecida; seus descendentes não são gerados;
+- `nós expandidos` aumenta quando um estado parcial passa pelo teste do limite
+  e seus filhos são gerados. Uma folha completa que melhora a solução é
+  avaliada, mas não é expandida, pois não possui filhos.
+
+O estado inicial também segue essas regras. A igualdade pode ser podada porque
+já existe uma rota incumbente com o mesmo custo, e a busca procura uma melhora.
 
 ## Testes e qualidade do código
 

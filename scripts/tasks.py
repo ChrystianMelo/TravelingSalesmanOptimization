@@ -11,6 +11,7 @@ COMMANDS = {
     "check": [["ruff", "check", "."], ["ruff", "format", "--check", "."]],
     "test": [["pytest", "-v", "tests"]],
     "run": [["traveling_salesman_optimization.main"]],
+    "experiment": [["traveling_salesman_optimization.experiment_runner"]],
 }
 
 
@@ -19,8 +20,8 @@ def main() -> int:
     parser.add_argument("task", choices=COMMANDS)
     parser.add_argument("task_args", nargs=argparse.REMAINDER)
     args = parser.parse_args()
-    if args.task != "run" and args.task_args:
-        parser.error("argumentos adicionais são aceitos somente pela tarefa run")
+    if args.task not in {"run", "experiment"} and args.task_args:
+        parser.error("argumentos adicionais são aceitos somente por run e experiment")
 
     for command in COMMANDS[args.task]:
         result = subprocess.run(
