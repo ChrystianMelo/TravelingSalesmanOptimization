@@ -1,5 +1,6 @@
 # Course material and assignment statement
 Material/
+docs/assignment/Slides/
 
 # Generated LaTeX files
 docs/report/**/*.aux

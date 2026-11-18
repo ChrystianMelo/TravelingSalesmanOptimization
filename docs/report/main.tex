@@ -41,6 +41,62 @@
 
 \subsection{Instrumentação e profiling}
 
+\section{Uso de Inteligência Artificial}
+
+Ferramentas de inteligência artificial generativa foram utilizadas como apoio
+à implementação, à revisão e à validação do projeto. Um resumo dos prompts
+utilizados está disponível no diretório
+\url{https://github.com/ChrystianMelo/TravelingSalesmanOptimization/tree/main/docs/prompts}.
+
+\subsection{Exemplo 1: correção da DFS para best-first}
+
+\subsubsection{Divergência identificada}
+
+Na primeira implementação do Branch-and-Bound, a IA utilizou busca em
+profundidade recursiva (DFS). Durante a revisão, o aluno identificou que essa
+ordem de exploração não correspondia à estratégia discutida em aula e solicitou
+explicitamente sua substituição por busca best-first com fila de prioridade.
+Embora a DFS também pudesse encontrar a solução ótima, a correção era
+necessária para que o algoritmo expandisse sempre o subproblema mais promissor
+entre todos os estados ativos.
+
+\subsubsection{Fundamentação algorítmica da troca}
+
+O material da Aula 12 apresenta o Branch-and-Bound como uma extensão do
+backtracking que associa a cada nó um limite para as soluções descendentes e
+mantém o valor da melhor solução encontrada. Para um problema de minimização,
+os filhos de um nó podem possuir limites inferiores distintos e, portanto,
+prioridades diferentes. A orientação dos slides é avaliar os filhos e priorizar
+aquele com a menor estimativa, isto é, o mais promissor. Essa ordem de
+exploração é denominada busca best-first e requer uma fila de prioridade para
+armazenar os nós ainda não visitados.\footnote{Material da Aula 12 de DCC207,
+``Soluções exatas para problemas difíceis (branch-and-bound)'', especialmente os
+slides 3 e 6.}
+
+A DFS usa implicitamente uma pilha e escolhe o estado gerado mais recentemente,
+sem comparar sua estimativa com a dos demais estados ativos. Ela preservaria a
+correção da enumeração e das podas, mas não implementaria o critério de controle
+best-first adotado na disciplina. Na implementação corrigida, o menor limite
+inferior define a prioridade global. A expectativa é que a busca concentre
+primeiro o trabalho nos ramos mais promissores e encontre cedo uma boa solução
+incumbente, o que pode tornar a poda dos demais ramos mais efetiva.
+
+\subsubsection{Correção da fronteira de busca}
+
+Essa mudança alterou a estrutura que controla a fronteira da busca. Na DFS, a
+recursão seguia um ramo até o fim antes de considerar os demais. Na versão
+corrigida, todos os estados gerados permanecem em uma fila de prioridade, cujo
+primeiro elemento é o estado com menor limite inferior. A ordem de inserção foi
+adicionada como critério de desempate para manter a execução determinística.
+
+\subsubsection{Impacto observado}
+
+Como a passagem de DFS para best-first modifica a ordem de visita da árvore,
+os testes dos contadores também foram atualizados. Na instância de rota cruzada
+usada nos testes, a DFS registrava 3 estados expandidos e 3 podados, enquanto a
+busca best-first passou a registrar 5 expandidos e 4 podados; ambas encontraram
+o custo ótimo 40. A suíte completa foi executada novamente após a correção.
+
 \section{Experimentos e Resultados}
 % Não inserir resultados antes da execução e análise dos experimentos.
 
