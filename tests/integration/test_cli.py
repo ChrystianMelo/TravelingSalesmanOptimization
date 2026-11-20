@@ -3,7 +3,7 @@ from pathlib import Path
 from traveling_salesman_optimization.main import main
 
 
-def test_cli_prints_solution(tmp_path: Path, capsys: object) -> None:
+def test_cli_prints_solution_with_selected_warm_start(tmp_path: Path, capsys: object) -> None:
     instance_path = tmp_path / "crossing.tsp"
     instance_path.write_text(
         """NAME: crossing
@@ -20,10 +20,11 @@ EOF
         encoding="utf-8",
     )
 
-    assert main([str(instance_path)]) == 0
+    assert main([str(instance_path), "--strategy", "christofides"]) == 0
 
     output = capsys.readouterr().out  # type: ignore[attr-defined]
     assert "instância: crossing" in output
+    assert "warm-start: christofides" in output
     assert "custo: 40" in output
     assert "rota: 100" in output
     assert "nós expandidos:" in output

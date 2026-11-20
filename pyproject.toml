@@ -8,10 +8,11 @@ version = "0.1.0"
 description = "Empirical analysis and optimization of geometric TSP algorithms."
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = ["networkx>=3.2,<4"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "ruff>=0.8"]
+docs = ["code2flow>=2.5,<3", "pylint>=4.1,<5"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

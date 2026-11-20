@@ -6,6 +6,7 @@ import argparse
 from collections.abc import Sequence
 
 from traveling_salesman_optimization.branch_and_bound import solve_branch_and_bound
+from traveling_salesman_optimization.initial_solutions import INITIAL_ROUTE_STRATEGIES
 from traveling_salesman_optimization.tsplib import read_tsplib
 
 
@@ -24,11 +25,18 @@ def main(arguments: Sequence[str] | None = None) -> int:
         description="Resolve uma instância TSPLIB EUC_2D por Branch-and-Bound."
     )
     parser.add_argument("instance", help="caminho para o arquivo .tsp")
+    parser.add_argument(
+        "--strategy",
+        choices=sorted(INITIAL_ROUTE_STRATEGIES),
+        default="trivial",
+        help="estratégia de warm-start (padrão: trivial)",
+    )
     args = parser.parse_args(arguments)
 
     instance = read_tsplib(args.instance)
-    result = solve_branch_and_bound(instance)
+    result = solve_branch_and_bound(instance, INITIAL_ROUTE_STRATEGIES[args.strategy])
     print(f"instância: {instance.name}")
+    print(f"warm-start: {args.strategy}")
     print(f"custo: {result.cost}")
     print("rota: " + " -> ".join(map(str, result.route)))
     print(f"nós expandidos: {result.expanded_nodes}")

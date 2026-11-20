@@ -5,14 +5,14 @@ import pytest
 from traveling_salesman_optimization.tsplib import calculate_route_cost, read_tsplib
 
 
-def write_instance(tmp_path: Path, contents: str) -> Path:
+def write_tsplib_instance(tmp_path: Path, contents: str) -> Path:
     path = tmp_path / "instance.tsp"
     path.write_text(contents, encoding="utf-8")
     return path
 
 
 def test_read_tsplib_preserves_ids_order_and_uses_tsplib_rounding(tmp_path: Path) -> None:
-    path = write_instance(
+    path = write_tsplib_instance(
         tmp_path,
         """NAME: rounding
 TYPE: TSP
@@ -36,9 +36,8 @@ EOF
     assert calculate_route_cost(instance.distances, (0, 1, 2)) == 12
 
 
-@pytest.mark.parametrize(
-    ("contents", "message"),
-    [
+def test_read_tsplib_rejects_incompatible_instances(tmp_path: Path) -> None:
+    invalid_instances = (
         (
             "DIMENSION: 1\nEDGE_WEIGHT_TYPE: MAN_2D\nNODE_COORD_SECTION\n1 0 0\n",
             "EUC_2D",
@@ -51,10 +50,8 @@ EOF
             "DIMENSION: 2\nEDGE_WEIGHT_TYPE: EUC_2D\nNODE_COORD_SECTION\n1 0 0\n1 2 2\n",
             "IDs",
         ),
-    ],
-)
-def test_read_tsplib_rejects_incompatible_instances(
-    tmp_path: Path, contents: str, message: str
-) -> None:
-    with pytest.raises(ValueError, match=message):
-        read_tsplib(write_instance(tmp_path, contents))
+    )
+
+    for contents, message in invalid_instances:
+        with pytest.raises(ValueError, match=message):
+            read_tsplib(write_tsplib_instance(tmp_path, contents))
