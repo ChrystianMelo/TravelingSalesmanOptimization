@@ -5,10 +5,12 @@ from __future__ import annotations
 import argparse
 import csv
 import hashlib
+import importlib.metadata
 import io
 import json
 import os
 import platform
+import signal
 import subprocess
 import sys
 import uuid
@@ -25,7 +27,7 @@ from traveling_salesman_optimization.experiment_io import (
 )
 from traveling_salesman_optimization.initial_solutions import INITIAL_ROUTE_STRATEGIES
 
-SCHEMA_VERSION = "1"
+SCHEMA_VERSION = "4"
 DEFAULT_TIMEOUT_SECONDS = 1_800.0
 DEFAULT_CHECKPOINT_INTERVAL_SECONDS = 30.0
 DEFAULT_EXTERNAL_GRACE_SECONDS = 10.0
@@ -50,6 +52,7 @@ CSV_FIELDS = [
     "initialization_seconds",
     "search_seconds",
     "solver_total_seconds",
+    "generated_nodes",
     "expanded_nodes",
     "pruned_nodes",
     "max_depth",
@@ -58,12 +61,20 @@ CSV_FIELDS = [
     "memory_measurement_method",
     "lower_bound_calls",
     "lower_bound_seconds",
-    "mst_calls",
-    "mst_computations",
-    "mst_cache_hits",
-    "mst_seconds",
     "checkpoint_calls",
     "checkpoint_seconds",
+    "mst_calls",
+    "mst_seconds",
+    "mst_process_peak_bytes",
+    "matching_calls",
+    "matching_seconds",
+    "matching_process_peak_bytes",
+    "eulerian_circuit_calls",
+    "eulerian_circuit_seconds",
+    "eulerian_circuit_process_peak_bytes",
+    "shortcut_calls",
+    "shortcut_seconds",
+    "shortcut_process_peak_bytes",
     "time_limit_seconds",
     "started_at_utc",
     "finished_at_utc",
@@ -139,6 +150,33 @@ def _identifier(value: dict[str, Any], length: int = 16) -> str:
     return hashlib.sha256(serialized.encode("ascii")).hexdigest()[:length]
 
 
+def _implementation_fingerprint(root: Path) -> str:
+    """Identifica os fontes que alteram a execução e o manifesto do projeto."""
+
+    digest = hashlib.sha256()
+    candidates = [root / "pyproject.toml"]
+    candidates.extend(sorted((root / "src").rglob("*.py")))
+    candidates.extend(sorted((root / "scripts").glob("*.py")))
+    for path in candidates:
+        relative = path.relative_to(root).as_posix().encode("utf-8")
+        digest.update(len(relative).to_bytes(4, "big"))
+        digest.update(relative)
+        contents = path.read_bytes()
+        digest.update(len(contents).to_bytes(8, "big"))
+        digest.update(contents)
+    return digest.hexdigest()
+
+
+def _dependency_versions() -> dict[str, str]:
+    versions: dict[str, str] = {}
+    for distribution in ("networkx", "traveling-salesman-optimization"):
+        try:
+            versions[distribution] = importlib.metadata.version(distribution)
+        except importlib.metadata.PackageNotFoundError:
+            versions[distribution] = "not installed"
+    return versions
+
+
 def _git_environment(root: Path) -> dict[str, Any]:
     def git(*arguments: str) -> str | None:
         try:
@@ -175,6 +213,7 @@ def _environment(root: Path) -> dict[str, Any]:
         "python_executable": sys.executable,
         "cpu_count": os.cpu_count(),
         "python_hash_seed": os.environ.get("PYTHONHASHSEED", "not set"),
+        "dependencies": _dependency_versions(),
         "working_directory": str(root),
         "git": _git_environment(root),
     }
@@ -244,15 +283,55 @@ def _load_worker_record(path: Path, attempt_id: str) -> dict[str, Any] | None:
     return record
 
 
+def _signal_process_tree(process: subprocess.Popen[bytes], *, force: bool) -> None:
+    """Sinaliza o grupo criado exclusivamente para um worker."""
+
+    if process.poll() is not None:
+        return
+    if os.name == "nt":
+        command = ["taskkill", "/PID", str(process.pid), "/T"]
+        if force:
+            command.append("/F")
+        subprocess.run(command, check=False, capture_output=True, timeout=5)
+        return
+    try:
+        os.killpg(process.pid, signal.SIGKILL if force else signal.SIGTERM)
+    except ProcessLookupError:
+        pass
+
+
 def _terminate_process(process: subprocess.Popen[bytes]) -> str:
-    process.terminate()
+    _signal_process_tree(process, force=False)
     try:
         process.wait(timeout=2)
-        return "external_timeout_terminate"
+        return "external_timeout_terminate_tree"
     except subprocess.TimeoutExpired:
-        process.kill()
+        _signal_process_tree(process, force=True)
         process.wait(timeout=5)
-        return "external_timeout_kill"
+        return "external_timeout_kill_tree"
+
+
+def _synchronize_tour_from_record(output_dir: Path, record: dict[str, Any]) -> None:
+    """Materializa o TOUR a partir do mesmo retrato usado no resultado."""
+
+    route = record.get("route_vertex_ids")
+    relative_path = record.get("route_file")
+    if not isinstance(route, list) or not route or not isinstance(relative_path, str):
+        return
+    if not all(isinstance(vertex_id, int) for vertex_id in route):
+        return
+    lines = [
+        f"NAME: {Path(relative_path).stem}",
+        "TYPE: TOUR",
+        f"DIMENSION: {len(route)}",
+        f"COMMENT: best_route_cost={record.get('best_route_cost', NA)}",
+        "TOUR_SECTION",
+        *(str(vertex_id) for vertex_id in route),
+        "-1",
+        "EOF",
+        "",
+    ]
+    atomic_write_text(output_dir / relative_path, "\n".join(lines))
 
 
 def _execute_one(spec: dict[str, Any], output_dir: Path, root: Path) -> dict[str, Any]:
@@ -279,6 +358,10 @@ def _execute_one(spec: dict[str, Any], output_dir: Path, root: Path) -> dict[str
             cwd=root,
             stdout=log,
             stderr=subprocess.STDOUT,
+            creationflags=(
+                getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0) if os.name == "nt" else 0
+            ),
+            start_new_session=os.name != "nt",
         )
         try:
             process.wait(
@@ -345,6 +428,7 @@ def _execute_one(spec: dict[str, Any], output_dir: Path, root: Path) -> dict[str
     if user_interrupted:
         record["termination"] = "user_interrupt"
         record["_batch_interrupted"] = True
+    _synchronize_tour_from_record(output_dir, record)
     atomic_write_json(result_path, {"record": record})
     return record
 
@@ -376,11 +460,18 @@ def _make_parser() -> argparse.ArgumentParser:
         default=DEFAULT_EXTERNAL_GRACE_SECONDS,
         help="margem para encerramento cooperativo antes da interrupção externa",
     )
-    parser.add_argument(
+    strategy_group = parser.add_mutually_exclusive_group()
+    strategy_group.add_argument(
         "--strategy",
+        dest="strategies",
+        action="append",
         choices=sorted(INITIAL_ROUTE_STRATEGIES),
-        default="trivial",
-        help="estratégia de inicialização do limite superior",
+        help="estratégia; a opção pode ser repetida (padrão: trivial)",
+    )
+    strategy_group.add_argument(
+        "--all-strategies",
+        action="store_true",
+        help="executa as cinco estratégias sobre o mesmo painel",
     )
     parser.add_argument(
         "--rerun",
@@ -397,6 +488,11 @@ def main(arguments: Sequence[str] | None = None) -> int:
         instances = discover_instances(args.inputs)
     except (OSError, ValueError) as error:
         parser.error(str(error))
+    strategies = (
+        tuple(sorted(INITIAL_ROUTE_STRATEGIES))
+        if args.all_strategies
+        else tuple(dict.fromkeys(args.strategies or ["trivial"]))
+    )
 
     root = Path(__file__).resolve().parents[2]
     output_dir = args.output_dir.expanduser().resolve()
@@ -408,27 +504,40 @@ def main(arguments: Sequence[str] | None = None) -> int:
         parser.error(str(error))
     row_positions = {row["run_id"]: position for position, row in enumerate(rows)}
 
-    canonical_config = {
+    base_config = {
         "schema_version": SCHEMA_VERSION,
         "algorithm": "branch_and_bound_best_first",
-        "initialization_strategy": args.strategy,
+        "lower_bound": "two_edges",
         "time_limit_seconds": args.timeout_seconds,
         "checkpoint_interval_seconds": args.checkpoint_interval_seconds,
         "external_grace_seconds": args.external_grace_seconds,
         "duration_clock": "time.perf_counter (monotonic)",
-        "instrumentation_version": 1,
+        "instrumentation_version": 4,
+        "implementation_fingerprint": _implementation_fingerprint(root),
+        "runtime": {
+            "python_version": platform.python_version(),
+            "python_implementation": platform.python_implementation(),
+            "platform": platform.platform(),
+            "machine": platform.machine(),
+            "dependencies": _dependency_versions(),
+        },
     }
-    config_id = _identifier(canonical_config)
-    config_path = output_dir / "configurations" / f"config-{config_id}.json"
-    if not config_path.exists():
-        atomic_write_json(
-            config_path,
-            {
-                "config_id": config_id,
-                "configuration": canonical_config,
-                "environment": _environment(root),
-            },
-        )
+    configurations: dict[str, str] = {}
+    environment = _environment(root)
+    for strategy in strategies:
+        canonical_config = {**base_config, "initialization_strategy": strategy}
+        config_id = _identifier(canonical_config)
+        configurations[strategy] = config_id
+        config_path = output_dir / "configurations" / f"config-{config_id}.json"
+        if not config_path.exists():
+            atomic_write_json(
+                config_path,
+                {
+                    "config_id": config_id,
+                    "configuration": canonical_config,
+                    "environment": environment,
+                },
+            )
 
     instance_metadata = [
         {
@@ -444,7 +553,8 @@ def main(arguments: Sequence[str] | None = None) -> int:
         {
             "invocation_id": invocation_id,
             "created_at_utc": _utc_now(),
-            "config_id": config_id,
+            "config_ids": configurations,
+            "strategies": list(strategies),
             "repetitions": args.repetitions,
             "rerun": args.rerun,
             "instances": instance_metadata,
@@ -454,34 +564,36 @@ def main(arguments: Sequence[str] | None = None) -> int:
 
     planned: dict[str, dict[str, Any]] = {}
     for metadata in instance_metadata:
-        for repetition in range(1, args.repetitions + 1):
-            run_id = _identifier(
-                {
+        for strategy in strategies:
+            config_id = configurations[strategy]
+            for repetition in range(1, args.repetitions + 1):
+                run_id = _identifier(
+                    {
+                        "config_id": config_id,
+                        "instance_sha256": metadata["sha256"],
+                        "instance_path": metadata["path"],
+                        "repetition": repetition,
+                    },
+                    length=20,
+                )
+                planned[run_id] = {
+                    "schema_version": SCHEMA_VERSION,
+                    "attempt_id": uuid.uuid4().hex,
+                    "run_id": run_id,
                     "config_id": config_id,
-                    "instance_sha256": metadata["sha256"],
                     "instance_path": metadata["path"],
+                    "instance_sha256": metadata["sha256"],
+                    "initialization_strategy": strategy,
                     "repetition": repetition,
-                },
-                length=20,
-            )
-            planned[run_id] = {
-                "schema_version": SCHEMA_VERSION,
-                "attempt_id": uuid.uuid4().hex,
-                "run_id": run_id,
-                "config_id": config_id,
-                "instance_path": metadata["path"],
-                "instance_sha256": metadata["sha256"],
-                "initialization_strategy": args.strategy,
-                "repetition": repetition,
-                "time_limit_seconds": args.timeout_seconds,
-                "checkpoint_interval_seconds": args.checkpoint_interval_seconds,
-                "external_grace_seconds": args.external_grace_seconds,
-                "output_dir": str(output_dir),
-                "route_file": f"routes/{run_id}.tour",
-                "checkpoint_file": f"checkpoints/{run_id}.json",
-                "result_file": f"runs/{run_id}.json",
-                "log_file": f"logs/{run_id}.log",
-            }
+                    "time_limit_seconds": args.timeout_seconds,
+                    "checkpoint_interval_seconds": args.checkpoint_interval_seconds,
+                    "external_grace_seconds": args.external_grace_seconds,
+                    "output_dir": str(output_dir),
+                    "route_file": f"routes/{run_id}.tour",
+                    "checkpoint_file": f"checkpoints/{run_id}.json",
+                    "result_file": f"runs/{run_id}.json",
+                    "log_file": f"logs/{run_id}.log",
+                }
 
     errors = 0
     executed = 0
@@ -490,11 +602,17 @@ def main(arguments: Sequence[str] | None = None) -> int:
         previous_position = row_positions.get(run_id)
         previous = rows[previous_position] if previous_position is not None else None
         if not args.rerun and previous is not None and previous["status"] in COMPLETED_STATUSES:
-            print(f"SKIP {run_id} {Path(spec['instance_path']).name} rep={spec['repetition']}")
+            print(
+                f"SKIP {run_id} {Path(spec['instance_path']).name} "
+                f"strategy={spec['initialization_strategy']} rep={spec['repetition']}"
+            )
             skipped += 1
             continue
 
-        print(f"RUN  {run_id} {Path(spec['instance_path']).name} rep={spec['repetition']}")
+        print(
+            f"RUN  {run_id} {Path(spec['instance_path']).name} "
+            f"strategy={spec['initialization_strategy']} rep={spec['repetition']}"
+        )
         try:
             record = _execute_one(spec, output_dir, root)
         except Exception as error:

@@ -1,4 +1,5 @@
 import csv
+import json
 from pathlib import Path
 
 from traveling_salesman_optimization.experiment_runner import main
@@ -66,7 +67,8 @@ def test_runner_collects_resumes_and_explicitly_reruns(tmp_path: Path) -> None:
     assert int(row["peak_memory_bytes"]) > 0
     assert row["memory_unit"] == "bytes"
     assert int(row["lower_bound_calls"]) > 0
-    assert int(row["mst_calls"]) > 0
+    assert int(row["generated_nodes"]) == int(row["lower_bound_calls"])
+    assert row["mst_calls"] == row["matching_calls"] == "0"
     assert Path(output_dir / row["checkpoint_file"]).is_file()
     assert Path(output_dir / row["result_file"]).is_file()
 
@@ -82,6 +84,12 @@ def test_runner_collects_resumes_and_explicitly_reruns(tmp_path: Path) -> None:
     assert len(_read_rows(output_dir)) == 1
     assert len(list((output_dir / "configurations").glob("*.json"))) == 1
     assert len(list((output_dir / "invocations").glob("*.json"))) == 3
+    configuration_path = next((output_dir / "configurations").glob("*.json"))
+    configuration = json.loads(configuration_path.read_text(encoding="utf-8"))["configuration"]
+    assert configuration["lower_bound"] == "two_edges"
+    assert configuration["schema_version"] == "4"
+    assert len(configuration["implementation_fingerprint"]) == 64
+    assert configuration["runtime"]["dependencies"]["networkx"]
 
 
 def test_timeout_keeps_partial_metrics_and_feasible_route(tmp_path: Path) -> None:
@@ -97,6 +105,7 @@ def test_timeout_keeps_partial_metrics_and_feasible_route(tmp_path: Path) -> Non
     assert row["optimal_cost"] == "NA"
     assert row["initial_route_cost"] == row["best_route_cost"] == "48"
     assert row["expanded_nodes"] == row["pruned_nodes"] == "0"
+    assert row["generated_nodes"] == "0"
     assert float(row["solver_total_seconds"]) >= 0
 
     route = _read_tour(output_dir / row["route_file"])
@@ -119,3 +128,27 @@ def test_individual_failure_is_recorded_and_batch_continues(tmp_path: Path) -> N
     error = next(row for row in rows if row["status"] == "error")
     assert error["error_type"] == "ValueError"
     assert error["optimal_cost"] == "NA"
+
+
+def test_runner_executes_all_strategies_in_one_comparable_panel(tmp_path: Path) -> None:
+    instance_path = _write_instance(tmp_path / "crossing.tsp")
+    output_dir = tmp_path / "all-strategies"
+    arguments = _common_arguments(instance_path, output_dir)
+    arguments[arguments.index("5")] = "0"
+    arguments.append("--all-strategies")
+
+    assert main(arguments) == 0
+
+    rows = _read_rows(output_dir)
+    assert len(rows) == 5
+    assert {row["initialization_strategy"] for row in rows} == {
+        "trivial",
+        "nearest_neighbor",
+        "convex_hull",
+        "twice_around_tree",
+        "christofides",
+    }
+    assert len(list((output_dir / "configurations").glob("*.json"))) == 5
+    invocation_path = next((output_dir / "invocations").glob("*.json"))
+    invocation = json.loads(invocation_path.read_text(encoding="utf-8"))
+    assert set(invocation["config_ids"]) == {row["initialization_strategy"] for row in rows}

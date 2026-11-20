@@ -1,10 +1,16 @@
 # Executor de experimentos
 
+O lote já coletado para a inicialização trivial, com configuração, tabela de
+resultados, interpretação preliminar e limitações, está documentado em
+[`docs/analysis/trivial-baseline.md`](../docs/analysis/trivial-baseline.md).
+A adaptação e a preparação do teste do limite das duas arestas estão em
+[`docs/analysis/lower-bound-two-edges.md`](../docs/analysis/lower-bound-two-edges.md).
+
 O módulo `traveling_salesman_optimization.experiment_runner` executa o
 Branch-and-Bound sequencialmente, com um processo novo para cada par
-instância–repetição. A única estratégia registrada nesta etapa é `trivial`;
-novas estratégias entram no registro `INITIAL_ROUTE_STRATEGIES` e usam a mesma
-interface do solver e do executor.
+instância–repetição. As cinco estratégias registradas são `trivial`,
+`nearest_neighbor`, `convex_hull`, `twice_around_tree` e `christofides`; todas
+usam a mesma interface do solver e do executor.
 
 ## Comandos
 
@@ -43,6 +49,20 @@ configuração, o caminho absoluto, o SHA-256 do conteúdo da instância e a
 repetição; uma alteração na instância ou em um parâmetro relevante cria outra
 execução reproduzível.
 
+Para comparar os warm-starts com o mesmo painel, repetições, prazo e versão do
+código, prefira uma única invocação com `--all-strategies`. A opção
+`--strategy` também pode ser repetida para selecionar um subconjunto. Cada
+estratégia recebe seu próprio `config_id`, mas todas são persistidas no mesmo
+CSV e na mesma invocação. `initialization_seconds` inclui a heurística completa.
+
+O solver usa exclusivamente o limite das duas arestas incidentes apresentado
+na Aula 12. A configuração canônica registra `lower_bound: "two_edges"`; não há
+opção de linha de comando para selecionar outro limite. O schema 3 removeu as
+colunas legadas da AGM. O schema 4 acrescenta impressão digital dos fontes,
+runtime e dependências, nós gerados e profiling das aproximações. Resultados
+dos schemas 1 a 3 continuam intactos, mas uma nova execução deve usar outra
+pasta de saída (ou um CSV previamente migrado).
+
 ## Arquivos produzidos
 
 Para uma pasta passada em `--output-dir`, são criados:
@@ -77,23 +97,29 @@ Todas as durações internas usam `time.perf_counter`, que é monotônico:
   fila de prioridade, expansão/poda, verificações de prazo e checkpoints;
 - `solver_total_seconds = initialization_seconds + search_seconds`;
 - `lower_bound_seconds` está contido em `search_seconds`;
-- `mst_seconds` mede todas as consultas de AGM, inclusive lookup no cache, e
-  está contido em `lower_bound_seconds` e em `search_seconds`;
 - `checkpoint_seconds` está contido em `search_seconds`;
 - `executor_wall_seconds` inclui inicialização do interpretador, leitura da
   instância, solver, serialização e encerramento do processo. Ele não é um
   componente de `solver_total_seconds`.
 
-Portanto, tempos de limite inferior, AGM e checkpoint não devem ser somados ao
-tempo de busca. `lower_bound_calls` conta chamadas iniciadas;
-`mst_calls = mst_computations + mst_cache_hits`. Uma computação interrompida
-pelo prazo ainda conta como chamada/computação e conserva o tempo já gasto.
+Portanto, tempos de limite inferior e checkpoint não devem ser somados ao
+tempo de busca. `lower_bound_calls` conta chamadas iniciadas, e
+`lower_bound_seconds` contém todo o custo do LB das duas arestas.
 
 Cada estado removido da fila incrementa no máximo um dos contadores:
 `expanded_nodes` quando gera filhos e `pruned_nodes` quando seu limite é maior
 ou igual à incumbente. Folhas viáveis não são expansões. `max_depth` é o maior
 número de arestas escolhidas depois da origem (raiz zero, ciclo completo
 `n - 1`).
+
+`generated_nodes` conta a raiz e cada filho construído e limitado. Ele inclui
+folhas completas e estados ainda presentes na fronteira no instante de um
+timeout, portanto não é a soma de expandidos e podados.
+
+`mst_*`, `matching_*`, `eulerian_circuit_*` e `shortcut_*` medem chamadas e
+tempo das fases executadas durante o warm-start. Os campos
+`*_process_peak_bytes` são o high-water mark do processo observado ao final da
+fase, não memória exclusiva ou incremental, e não são aditivos.
 
 `initial_route_cost` é o limite superior inicial; `best_route_cost` é sempre o
 custo da melhor rota preservada. `optimal_cost` só recebe esse custo em
@@ -103,12 +129,32 @@ final.
 
 ## Prazo, checkpoint e memória
 
-O prazo do solver cobre inicialização mais busca. O solver o verifica
-cooperativamente no laço da busca, na geração de filhos e no Prim. Ao expirar,
+O prazo por execução começa antes da leitura da instância; o worker desconta
+esse tempo antes de entregar o restante ao solver. O solver o verifica
+cooperativamente no laço da busca e na geração de filhos. Ao expirar,
 devolve `timeout` com a incumbente, contadores e tempos parciais. O executor
 espera ainda `--external-grace-seconds` (10 por padrão) e então usa
-`terminate`/`kill` como salvaguarda, convertendo o último checkpoint válido em
-resultado de timeout.
+`terminate`/`kill` sobre o grupo do worker como salvaguarda, convertendo o
+último checkpoint válido em resultado de timeout. A rota é armazenada no JSON
+do checkpoint e o `.tour` é rematerializado desse mesmo retrato.
+
+## Análise de sensibilidade e qualidade
+
+O módulo `traveling_salesman_optimization.empirical_analysis` recebe um ou
+mais CSVs e produz `enriched_results.csv` e `summary.json`. São calculados:
+
+- razão de aspecto do bounding box;
+- proporção de vértices extremos no fecho convexo;
+- entropia espacial normalizada em grade `ceil(sqrt(n))`;
+- grau máximo da AGM determinística;
+- coeficiente de variação das distâncias ao vizinho mais próximo;
+- quantidade e proporção de violações da desigualdade triangular na matriz
+  `EUC_2D` efetivamente usada.
+
+O resumo contém regressões log-log de tempo e memória, R², RMSE, regressão
+múltipla do tempo e agregados por warm-start. Timeouts são dados censurados e
+excluídos dos ajustes de complexidade. Gaps só usam ótimo certificado na mesma
+instância ou fornecido por SHA-256 em `--known-optima-json`.
 
 `peak_memory_bytes` é o high-water mark do processo worker inteiro, sempre em
 bytes. No Windows, a origem é `GetProcessMemoryInfo.PeakWorkingSetSize`; em

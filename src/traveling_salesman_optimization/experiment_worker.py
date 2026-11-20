@@ -83,11 +83,13 @@ def _record_from_result(
         "initial_route_cost": result.initial_cost,
         "best_route_cost": result.cost,
         "optimal_cost": result.cost if result.status == "optimal" else NA,
+        "route_vertex_ids": list(result.route[:-1]),
         "status": result.status,
         "instance_load_seconds": instance_load_seconds,
         "initialization_seconds": result.initialization_seconds,
         "search_seconds": result.search_seconds,
         "solver_total_seconds": result.solver_total_seconds,
+        "generated_nodes": result.generated_nodes,
         "expanded_nodes": result.expanded_nodes,
         "pruned_nodes": result.pruned_nodes,
         "max_depth": result.max_depth,
@@ -96,12 +98,20 @@ def _record_from_result(
         "memory_measurement_method": sampler.method,
         "lower_bound_calls": result.lower_bound_calls,
         "lower_bound_seconds": result.lower_bound_seconds,
-        "mst_calls": result.mst_calls,
-        "mst_computations": result.mst_computations,
-        "mst_cache_hits": result.mst_cache_hits,
-        "mst_seconds": result.mst_seconds,
         "checkpoint_calls": result.checkpoint_calls,
         "checkpoint_seconds": result.checkpoint_seconds,
+        "mst_calls": result.mst_calls,
+        "mst_seconds": result.mst_seconds,
+        "mst_process_peak_bytes": result.mst_process_peak_bytes,
+        "matching_calls": result.matching_calls,
+        "matching_seconds": result.matching_seconds,
+        "matching_process_peak_bytes": result.matching_process_peak_bytes,
+        "eulerian_circuit_calls": result.eulerian_circuit_calls,
+        "eulerian_circuit_seconds": result.eulerian_circuit_seconds,
+        "eulerian_circuit_process_peak_bytes": result.eulerian_circuit_process_peak_bytes,
+        "shortcut_calls": result.shortcut_calls,
+        "shortcut_seconds": result.shortcut_seconds,
+        "shortcut_process_peak_bytes": result.shortcut_process_peak_bytes,
         "time_limit_seconds": spec["time_limit_seconds"],
         "started_at_utc": started_at,
         "finished_at_utc": "" if result.status == "running" else _utc_now(),
@@ -139,6 +149,7 @@ def _empty_error_record(
         "initialization_seconds": NA,
         "search_seconds": NA,
         "solver_total_seconds": NA,
+        "generated_nodes": 0,
         "expanded_nodes": 0,
         "pruned_nodes": 0,
         "max_depth": 0,
@@ -147,12 +158,20 @@ def _empty_error_record(
         "memory_measurement_method": sampler.method,
         "lower_bound_calls": 0,
         "lower_bound_seconds": 0.0,
-        "mst_calls": 0,
-        "mst_computations": 0,
-        "mst_cache_hits": 0,
-        "mst_seconds": 0.0,
         "checkpoint_calls": 0,
         "checkpoint_seconds": 0.0,
+        "mst_calls": 0,
+        "mst_seconds": 0.0,
+        "mst_process_peak_bytes": 0,
+        "matching_calls": 0,
+        "matching_seconds": 0.0,
+        "matching_process_peak_bytes": 0,
+        "eulerian_circuit_calls": 0,
+        "eulerian_circuit_seconds": 0.0,
+        "eulerian_circuit_process_peak_bytes": 0,
+        "shortcut_calls": 0,
+        "shortcut_seconds": 0.0,
+        "shortcut_process_peak_bytes": 0,
         "time_limit_seconds": spec["time_limit_seconds"],
         "started_at_utc": started_at,
         "finished_at_utc": _utc_now(),
@@ -179,12 +198,17 @@ def run_spec(spec_path: Path) -> int:
     sampler = PeakMemorySampler.create()
     started_at = _utc_now()
     latest_record: dict[str, Any] | None = None
+    worker_started = perf_counter()
 
     try:
         load_started = perf_counter()
         instance = read_tsplib(spec["instance_path"])
         instance_load_seconds = perf_counter() - load_started
         strategy = INITIAL_ROUTE_STRATEGIES[spec["initialization_strategy"]]
+        remaining_seconds = max(
+            0.0,
+            float(spec["time_limit_seconds"]) - (perf_counter() - worker_started),
+        )
 
         def save_progress(progress: BranchAndBoundResult) -> None:
             nonlocal latest_record
@@ -203,9 +227,10 @@ def run_spec(spec_path: Path) -> int:
         result = solve_branch_and_bound(
             instance,
             strategy,
-            time_limit_seconds=float(spec["time_limit_seconds"]),
+            time_limit_seconds=remaining_seconds,
             progress_callback=save_progress,
             checkpoint_interval_seconds=float(spec["checkpoint_interval_seconds"]),
+            phase_memory_query=sampler.peak_bytes,
         )
         _validate_route(instance, result)
         final_record = _record_from_result(
