@@ -1,0 +1,39 @@
+// Gerado por scripts/generate_diagrams.py a partir da saída do Code2flow.
+digraph calls {
+  graph [rankdir=LR, bgcolor="transparent", pad=0.15, nodesep=0.25, ranksep=0.5];
+  node [shape=box, style="rounded,filled", fillcolor="#f8fafc",
+        color="#64748b", fontname="Helvetica", fontsize=9, margin="0.10,0.06"];
+  edge [color="#64748b", arrowsize=0.7];
+  subgraph cluster_approximation {
+    label="approximation.py";
+    color="#cbd5e1";
+    fontname="Helvetica";
+    fontsize=10;
+    n0 [label="_eulerian_circuit()"];
+    n1 [label="_eulerian_to_hamiltonian()"];
+    n2 [label="_minimum_spanning_tree_edges()"];
+    n3 [label="_minimum_weight_perfect_matching()"];
+    n4 [label="christofides_route()", fillcolor="#dbeafe", color="#2563eb", penwidth=2];
+    n5 [label="twice_around_tree_route()", fillcolor="#dbeafe", color="#2563eb", penwidth=2];
+  }
+  subgraph cluster_initial_solutions {
+    label="initial_solutions.py";
+    color="#cbd5e1";
+    fontname="Helvetica";
+    fontsize=10;
+    n6 [label="_convex_hull_vertices()"];
+    n7 [label="_cross_product()"];
+    n8 [label="convex_hull_insertion_initial_route()", fillcolor="#dbeafe", color="#2563eb", penwidth=2];
+    n9 [label="nearest_neighbor_initial_route()", fillcolor="#dbeafe", color="#2563eb", penwidth=2];
+    n10 [label="trivial_initial_route()", fillcolor="#dbeafe", color="#2563eb", penwidth=2];
+  }
+  n4 -> n0;
+  n4 -> n1;
+  n4 -> n2;
+  n4 -> n3;
+  n5 -> n0;
+  n5 -> n1;
+  n5 -> n2;
+  n6 -> n7;
+  n8 -> n6;
+}

@@ -7,10 +7,11 @@ exatos e aproximativos para o Problema do Caixeiro Viajante (TSP) geométrico.
 
 O [enunciado do TP2](docs/assignment/tp2.pdf) está disponível neste repositório.
 
-> **Estado atual:** leitura TSPLIB `EUC_2D`, Branch-and-Bound exato best-first,
-> cold start trivial, instrumentação por subrotina e executor reproduzível com
-> timeout, checkpoints, retomada e processos isolados. As demais estratégias de
-> warm-start e os algoritmos aproximativos entram pela interface já preparada.
+> **Estado atual:** leitura TSPLIB `EUC_2D`, Branch-and-Bound exato best-first
+> com o limite das duas arestas incidentes da Aula 12, as cinco estratégias de
+> warm-start, aproximações Twice-around-the-tree e Christofides, instrumentação
+> e executor reproduzível com timeout, checkpoints, retomada, processos
+> isolados e identificação da versão efetiva dos fontes e dependências.
 
 ## Objetivos
 
@@ -36,6 +37,18 @@ limite superior:
 3. inserção gulosa iniciada pelo fecho convexo;
 4. Twice-around-the-tree;
 5. Christofides.
+
+A implementação, as complexidades, os critérios de desempate, as garantias e
+os casos degenerados estão documentados em
+[Estratégias de warm-start](docs/implementation/warm-start-strategies.md).
+
+## Arquitetura e diagramas
+
+A documentação de [arquitetura e fluxos dos algoritmos](docs/architecture.md)
+reúne diagramas de chamadas gerados com Code2flow, UML de classes e módulos
+gerado com Pyreverse e fluxos explicativos do Branch-and-Bound e das cinco
+estratégias de inicialização. Ela também descreve como regenerar os artefatos
+após alterações em `src/`.
 
 ## Avaliação experimental
 
@@ -106,17 +119,21 @@ python scripts/tasks.py setup
 O solver recebe o caminho de uma instância `.tsp`. No Windows PowerShell:
 
 ```powershell
-.\scripts\run.bat data\instances\example_crossing.tsp
+.\scripts\run.bat data\instances\example_crossing.tsp `
+  --strategy christofides
 ```
 
 No Linux ou macOS:
 
 ```bash
-python scripts/tasks.py run data/instances/example_crossing.tsp
+python scripts/tasks.py run data/instances/example_crossing.tsp \
+  --strategy christofides
 ```
 
 A rota exibida usa os IDs originais e repete a origem no final. O custo de
-toda rota inclui essa aresta de retorno.
+toda rota inclui essa aresta de retorno. `--strategy` aceita `trivial`,
+`nearest_neighbor`, `convex_hull`, `twice_around_tree` ou `christofides` e usa
+`trivial` por padrão.
 
 ### Automação dos experimentos
 
@@ -125,8 +142,29 @@ por padrão e salva um CSV depois de cada processo isolado:
 
 ```powershell
 .\scripts\run_experiments.bat data\instances `
-  --output-dir experiments\results\trivial --repetitions 3
+  --output-dir experiments\results\christofides `
+  --strategy christofides --repetitions 3
 ```
+
+Para executar as cinco estratégias sobre o mesmo painel e na mesma invocação:
+
+```powershell
+.\scripts\run_experiments.bat data\instances `
+  --output-dir experiments\results\current `
+  --all-strategies --repetitions 3
+```
+
+Depois da coleta, as características geométricas, gaps e modelos estatísticos
+podem ser gerados sem reexecutar os algoritmos:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\tasks.py analysis `
+  experiments\results\current\results.csv `
+  --output-dir experiments\results\current\analysis
+```
+
+O analisador nunca usa a incumbente de um timeout como ótimo. Ótimos externos
+só são aceitos por um mapa JSON indexado pelo SHA-256 da instância.
 
 Executar novamente o mesmo comando retoma o lote e pula resultados `optimal`
 ou `timeout`; `--rerun` força a repetição sem criar linha duplicada. A descrição
@@ -135,16 +173,19 @@ dos tempos, memória, status, arquivos e comandos de validação está em
 
 ### Contadores do Branch-and-Bound
 
-Cada estado visitado incrementa exatamente um contador:
+Os contadores possuem as seguintes definições:
+
+- `nós gerados` conta a raiz e cada filho cujo lower bound foi calculado;
 
 - `nós podados` aumenta quando o limite inferior do estado é maior ou igual ao
   custo da melhor rota conhecida; seus descendentes não são gerados;
 - `nós expandidos` aumenta quando um estado parcial passa pelo teste do limite
   e seus filhos são gerados. Uma folha completa que melhora a solução é
-  avaliada, mas não é expandida, pois não possui filhos.
+  avaliada, mas não é expandida nem podada, pois não possui filhos.
 
 O estado inicial também segue essas regras. A igualdade pode ser podada porque
 já existe uma rota incumbente com o mesmo custo, e a busca procura uma melhora.
+Assim, `gerados` não é, em geral, a soma de `expandidos` e `podados`.
 
 ## Testes e qualidade do código
 
@@ -174,6 +215,8 @@ pushes e pull requests.
 │   └── instances/           # Instâncias selecionadas da TSPLIB
 ├── docs/
 │   ├── assignment/          # Enunciado do trabalho
+│   ├── diagrams/            # Diagramas de arquitetura gerados
+│   ├── implementation/      # Decisões e detalhes dos algoritmos
 │   ├── prompts/             # Histórico obrigatório de prompts de IA
 │   └── report/              # Relatório SBC em LaTeX e figuras
 ├── experiments/

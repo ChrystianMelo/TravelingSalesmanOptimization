@@ -1,0 +1,41 @@
+digraph "packages_architecture" {
+rankdir=BT
+charset="utf-8"
+"traveling_salesman_optimization" [color="black", label=<package>, shape="box", style="solid"];
+"traveling_salesman_optimization.approximation" [color="black", label=<approximation>, shape="box", style="solid"];
+"traveling_salesman_optimization.branch_and_bound" [color="black", label=<branch_and_bound>, shape="box", style="solid"];
+"traveling_salesman_optimization.empirical_analysis" [color="black", label=<empirical_analysis>, shape="box", style="solid"];
+"traveling_salesman_optimization.experiment_io" [color="black", label=<experiment_io>, shape="box", style="solid"];
+"traveling_salesman_optimization.experiment_runner" [color="black", label=<experiment_runner>, shape="box", style="solid"];
+"traveling_salesman_optimization.experiment_worker" [color="black", label=<experiment_worker>, shape="box", style="solid"];
+"traveling_salesman_optimization.initial_solutions" [color="black", label=<initial_solutions>, shape="box", style="solid"];
+"traveling_salesman_optimization.main" [color="black", label=<main>, shape="box", style="solid"];
+"traveling_salesman_optimization.phase_profiling" [color="black", label=<phase_profiling>, shape="box", style="solid"];
+"traveling_salesman_optimization.process_metrics" [color="black", label=<process_metrics>, shape="box", style="solid"];
+"traveling_salesman_optimization.tsplib" [color="black", label=<tsplib>, shape="box", style="solid"];
+"traveling_salesman_optimization" -> "traveling_salesman_optimization.approximation" [arrowhead="open", arrowtail="none"];
+"traveling_salesman_optimization" -> "traveling_salesman_optimization.branch_and_bound" [arrowhead="open", arrowtail="none"];
+"traveling_salesman_optimization" -> "traveling_salesman_optimization.initial_solutions" [arrowhead="open", arrowtail="none"];
+"traveling_salesman_optimization" -> "traveling_salesman_optimization.tsplib" [arrowhead="open", arrowtail="none"];
+"traveling_salesman_optimization.approximation" -> "traveling_salesman_optimization.phase_profiling" [arrowhead="open", arrowtail="none"];
+"traveling_salesman_optimization.approximation" -> "traveling_salesman_optimization.tsplib" [arrowhead="open", arrowtail="none"];
+"traveling_salesman_optimization.branch_and_bound" -> "traveling_salesman_optimization.initial_solutions" [arrowhead="open", arrowtail="none"];
+"traveling_salesman_optimization.branch_and_bound" -> "traveling_salesman_optimization.phase_profiling" [arrowhead="open", arrowtail="none"];
+"traveling_salesman_optimization.branch_and_bound" -> "traveling_salesman_optimization.tsplib" [arrowhead="open", arrowtail="none"];
+"traveling_salesman_optimization.empirical_analysis" -> "traveling_salesman_optimization.approximation" [arrowhead="open", arrowtail="none"];
+"traveling_salesman_optimization.empirical_analysis" -> "traveling_salesman_optimization.experiment_io" [arrowhead="open", arrowtail="none"];
+"traveling_salesman_optimization.empirical_analysis" -> "traveling_salesman_optimization.initial_solutions" [arrowhead="open", arrowtail="none"];
+"traveling_salesman_optimization.empirical_analysis" -> "traveling_salesman_optimization.tsplib" [arrowhead="open", arrowtail="none"];
+"traveling_salesman_optimization.experiment_runner" -> "traveling_salesman_optimization.experiment_io" [arrowhead="open", arrowtail="none"];
+"traveling_salesman_optimization.experiment_runner" -> "traveling_salesman_optimization.initial_solutions" [arrowhead="open", arrowtail="none"];
+"traveling_salesman_optimization.experiment_worker" -> "traveling_salesman_optimization.branch_and_bound" [arrowhead="open", arrowtail="none"];
+"traveling_salesman_optimization.experiment_worker" -> "traveling_salesman_optimization.experiment_io" [arrowhead="open", arrowtail="none"];
+"traveling_salesman_optimization.experiment_worker" -> "traveling_salesman_optimization.initial_solutions" [arrowhead="open", arrowtail="none"];
+"traveling_salesman_optimization.experiment_worker" -> "traveling_salesman_optimization.process_metrics" [arrowhead="open", arrowtail="none"];
+"traveling_salesman_optimization.experiment_worker" -> "traveling_salesman_optimization.tsplib" [arrowhead="open", arrowtail="none"];
+"traveling_salesman_optimization.initial_solutions" -> "traveling_salesman_optimization.approximation" [arrowhead="open", arrowtail="none"];
+"traveling_salesman_optimization.initial_solutions" -> "traveling_salesman_optimization.tsplib" [arrowhead="open", arrowtail="none"];
+"traveling_salesman_optimization.main" -> "traveling_salesman_optimization.branch_and_bound" [arrowhead="open", arrowtail="none"];
+"traveling_salesman_optimization.main" -> "traveling_salesman_optimization.initial_solutions" [arrowhead="open", arrowtail="none"];
+"traveling_salesman_optimization.main" -> "traveling_salesman_optimization.tsplib" [arrowhead="open", arrowtail="none"];
+}

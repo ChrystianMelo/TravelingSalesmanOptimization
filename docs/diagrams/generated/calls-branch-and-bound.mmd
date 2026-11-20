@@ -1,0 +1,28 @@
+%% Gerado por scripts/generate_diagrams.py a partir da saída do Code2flow.
+flowchart LR
+  subgraph module_branch_and_bound["branch_and_bound.py"]
+    direction TB
+    n0["_cheapest_allowed_edges_sum()"]
+    n1["_incident_vertices_by_cost()"]
+    n2["_two_edges_lower_bound()"]
+    n3["solve_branch_and_bound()"]
+  end
+  subgraph module_phase_profiling["phase_profiling.py"]
+    direction TB
+    n4["ApproximationProfile.value()"]
+    n5["collect_approximation_profile()"]
+  end
+  subgraph module_tsplib["tsplib.py"]
+    direction TB
+    n6["TSPInstance.route_cost()"]
+    n7["calculate_route_cost()"]
+  end
+  n2 --> n0
+  n3 --> n1
+  n3 --> n2
+  n3 --> n4
+  n3 --> n5
+  n3 --> n6
+  n6 --> n7
+  classDef entry fill:#dbeafe,stroke:#2563eb,stroke-width:2px
+  class n3 entry

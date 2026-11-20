@@ -1,0 +1,54 @@
+// Gerado por scripts/generate_diagrams.py a partir da saída do Code2flow.
+digraph calls {
+  graph [rankdir=LR, bgcolor="transparent", pad=0.15, nodesep=0.25, ranksep=0.5];
+  node [shape=box, style="rounded,filled", fillcolor="#f8fafc",
+        color="#64748b", fontname="Helvetica", fontsize=9, margin="0.10,0.06"];
+  edge [color="#64748b", arrowsize=0.7];
+  subgraph cluster_branch_and_bound {
+    label="branch_and_bound.py";
+    color="#cbd5e1";
+    fontname="Helvetica";
+    fontsize=10;
+    n0 [label="_cheapest_allowed_edges_sum()"];
+    n1 [label="_incident_vertices_by_cost()"];
+    n2 [label="_two_edges_lower_bound()"];
+    n3 [label="solve_branch_and_bound()"];
+  }
+  subgraph cluster_main {
+    label="main.py";
+    color="#cbd5e1";
+    fontname="Helvetica";
+    fontsize=10;
+    n4 [label="main()", fillcolor="#dbeafe", color="#2563eb", penwidth=2];
+  }
+  subgraph cluster_phase_profiling {
+    label="phase_profiling.py";
+    color="#cbd5e1";
+    fontname="Helvetica";
+    fontsize=10;
+    n5 [label="ApproximationProfile.value()"];
+    n6 [label="collect_approximation_profile()"];
+  }
+  subgraph cluster_tsplib {
+    label="tsplib.py";
+    color="#cbd5e1";
+    fontname="Helvetica";
+    fontsize=10;
+    n7 [label="TSPInstance.route_cost()"];
+    n8 [label="_build_distance_matrix()"];
+    n9 [label="_parse_header()"];
+    n10 [label="calculate_route_cost()"];
+    n11 [label="read_tsplib()"];
+  }
+  n2 -> n0;
+  n3 -> n1;
+  n3 -> n2;
+  n3 -> n5;
+  n3 -> n6;
+  n3 -> n7;
+  n4 -> n3;
+  n4 -> n11;
+  n7 -> n10;
+  n11 -> n8;
+  n11 -> n9;
+}

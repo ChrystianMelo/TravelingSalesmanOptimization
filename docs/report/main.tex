@@ -1,11 +1,15 @@
+\pdfminorversion=7
 \documentclass[12pt]{article}
 
 \usepackage[T1]{fontenc}
 \usepackage[utf8]{inputenc}
 \usepackage[brazil]{babel}
+\usepackage{float}
 \usepackage{graphicx}
 \usepackage{url}
 \usepackage{sbc-template}
+
+\graphicspath{{figures/}}
 
 \sloppy
 
@@ -35,11 +39,140 @@
 \section{Implementação, Profiling e Auditoria}
 % Estruturas de dados, decisões algorítmicas, refatorações e gargalos.
 
+\subsection{Arquitetura e documentação automática}
+
+A implementação foi dividida em módulos com responsabilidades específicas. O
+módulo \texttt{tsplib} centraliza a leitura das instâncias e a matriz de custos;
+\texttt{approximation} contém as aproximações e suas subrotinas compartilhadas;
+\texttt{initial\_solutions} registra as estratégias de limite superior; e
+\texttt{branch\_and\_bound} implementa o solver exato. A execução experimental
+separa o orquestrador do processo isolado que executa cada configuração. A
+Figura~\ref{fig:uml-architecture} mostra tanto as dependências por importação
+quanto as principais classes e seus métodos.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.85\textwidth]{uml-modules.pdf}
+  \vspace{0.6em}
+  \includegraphics[width=0.68\textwidth]{uml-classes.pdf}
+  \caption{Dependências entre módulos e classes do domínio, geradas pelo
+  Pyreverse diretamente a partir de \texttt{src/}.}
+  \label{fig:uml-architecture}
+\end{figure}
+
+Os diagramas são regenerados por
+\texttt{python scripts/generate\_diagrams.py}. O script executa Pyreverse para
+as visões UML e Code2flow para as relações de chamada, preserva as fontes
+Mermaid e DOT em \texttt{docs/diagrams/generated/} e renderiza as figuras PDF
+usadas neste artigo por meio do Graphviz. Assim, alterações estruturais no
+código podem ser refletidas na documentação sem redesenho manual.
+
 \subsection{Branch-and-Bound e estratégias de warm-start}
+
+O limite superior inicial do Branch-and-Bound é fornecido por uma função
+substituível que retorna uma permutação dos índices internos. Foram
+implementadas as cinco configurações do enunciado: a ordem trivial do arquivo;
+o Vizinho Mais Próximo; a inserção de menor acréscimo a partir do fecho convexo;
+Twice-around-the-tree; e Christofides. Todas calculam o custo final pela mesma
+matriz EUC\_2D do solver. Empates são resolvidos por índice e posição da aresta,
+mantendo as execuções determinísticas.
+
+O fecho convexo é calculado por cadeia monotônica. A cada iteração da inserção
+é escolhido o par formado por vértice $v$ e aresta $(a,b)$ que minimiza
+$d(a,v)+d(v,b)-d(a,b)$. Pontos colineares e coordenadas duplicadas são tratados
+como candidatos à inserção, de modo que os IDs originais sejam preservados.
+
+A Figura~\ref{fig:calls-branch-and-bound} apresenta o recorte estático das
+chamadas feitas pelo solver. O custo da incumbente e dos ciclos completos usa
+a mesma função de custo da instância, enquanto o limite das duas arestas
+reutiliza a ordenação das arestas incidentes. Funções locais responsáveis pelo
+prazo, pelos checkpoints e pela construção do resultado permanecem internas ao
+solver e, por essa razão, não aparecem como nós independentes no Code2flow.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.90\linewidth]{calls-branch-and-bound.pdf}
+  \caption{Grafo de chamadas do núcleo do Branch-and-Bound gerado pelo
+  Code2flow. As funções de entrada são destacadas em azul.}
+  \label{fig:calls-branch-and-bound}
+\end{figure}
 
 \subsection{Algoritmos aproximativos}
 
+A AGM compartilhada pelas duas aproximações é calculada pelo algoritmo de
+Prim denso em $O(n^2)$, apropriado ao grafo completo armazenado como matriz. Em
+Twice-around-the-tree, as arestas da AGM são duplicadas e o circuito euleriano
+é construído explicitamente por Hierholzer antes da aplicação dos atalhos.
+
+Christofides seleciona os vértices de grau ímpar da AGM, constrói o grafo
+completo induzido e usa o Blossom disponibilizado pelo NetworkX para obter o
+matching perfeito de peso mínimo. A AGM e o matching formam um multigrafo
+euleriano; seu circuito é construído por Hierholzer com IDs de arestas que
+preservam arestas paralelas. A primeira ocorrência de cada vértice produz os
+atalhos e a rota hamiltoniana. Essa conversão do circuito euleriano é
+compartilhada pelas duas aproximações. Sob custos métricos, os fatores
+garantidos são 2 para Twice-around-the-tree e 1,5 para Christofides.
+
+Esses fatores não são atribuídos automaticamente às matrizes \texttt{EUC\_2D}.
+O arredondamento para o inteiro mais próximo pode violar a desigualdade
+triangular mesmo quando as coordenadas pertencem ao plano euclidiano. Por isso,
+o pipeline calcula as violações na matriz efetivamente usada; nas instâncias
+não métricas, as razões em relação ao ótimo são tratadas como resultados
+empíricos, e não como confirmação dos fatores teóricos.
+
+A reutilização dessas subrotinas é explicitada na
+Figura~\ref{fig:calls-initial-strategies}. Twice-around-the-tree e Christofides
+compartilham a AGM, a construção do circuito euleriano e a conversão para rota
+hamiltoniana. Como Code2flow realiza análise estática, a seleção dinâmica pelo
+registro \texttt{INITIAL\_ROUTE\_STRATEGIES} não produz arestas; as cinco
+funções de entrada são, portanto, incluídas explicitamente durante a geração.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.85\textwidth]{calls-initial-strategies.pdf}
+  \caption{Chamadas e reutilização de código entre as cinco estratégias de
+  limite superior, geradas pelo Code2flow.}
+  \label{fig:calls-initial-strategies}
+\end{figure}
+
 \subsection{Instrumentação e profiling}
+
+O solver separa leitura da instância, construção da incumbente e busca exata.
+Dentro da busca, mede individualmente as chamadas do limite inferior e o custo
+dos checkpoints. A árvore registra nós gerados, expandidos e podados e a maior
+profundidade. Nós gerados incluem a raiz, folhas completas e estados ainda na
+fronteira no instante de um timeout; portanto, essa quantidade não é a soma das
+outras duas.
+
+Durante os warm-starts aproximativos, um coletor contextual mede separadamente
+a AGM, o matching perfeito, o circuito euleriano e os shortcuts. Para cada
+fase são registrados número de chamadas, duração monotônica e o pico residente
+do processo observado ao final. Este último é um high-water mark do worker, e
+não memória exclusiva da subrotina; consequentemente, os picos das fases não
+podem ser somados.
+
+Cada execução usa um processo isolado. O identificador da configuração inclui
+um hash dos fontes relevantes, versão do Python, plataforma, arquitetura e
+versões das dependências. Essa composição impede que a retomada reutilize
+silenciosamente uma linha produzida por outra implementação. Checkpoints
+atômicos mantêm também a rota; depois de uma interrupção externa, o arquivo
+TSPLIB TOUR é reconstruído do mesmo retrato usado no CSV.
+
+\subsection{Características e modelos empíricos}
+
+O pipeline de análise extrai razão de aspecto do bounding box, proporção de
+vértices do fecho convexo, entropia espacial em uma grade
+$\lceil\sqrt{n}\rceil\times\lceil\sqrt{n}\rceil$, grau máximo da AGM e
+coeficiente de variação da distância ao vizinho mais próximo. Também contabiliza
+violações da desigualdade triangular na matriz arredondada.
+
+Os ajustes simples relacionam, em escala logarítmica, dimensão com tempo e pico
+de memória. Uma regressão múltipla relaciona o logaritmo do tempo às
+características geométricas e topológicas. Cada modelo registra $R^2$, RMSE e
+número de observações. Execuções com timeout são dados censurados e ficam fora
+dos ajustes de complexidade. Gaps somente são calculados quando existe ótimo
+certificado para o mesmo SHA-256 de instância; uma incumbente parcial nunca é
+promovida a ótimo.
 
 \section{Uso de Inteligência Artificial}
 

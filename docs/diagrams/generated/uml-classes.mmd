@@ -1,0 +1,44 @@
+%% Gerado pelo Pyreverse; não edite manualmente.
+classDiagram
+  class BranchAndBoundResult {
+    checkpoint_calls : int
+    checkpoint_seconds : float
+    cost : int
+    eulerian_circuit_calls : int
+    eulerian_circuit_process_peak_bytes : int
+    eulerian_circuit_seconds : float
+    expanded_nodes : int
+    generated_nodes : int
+    initial_cost : int
+    initialization_seconds : float
+    lower_bound_calls : int
+    lower_bound_seconds : float
+    matching_calls : int
+    matching_process_peak_bytes : int
+    matching_seconds : float
+    max_depth : int
+    mst_calls : int
+    mst_process_peak_bytes : int
+    mst_seconds : float
+    optimal_cost : int | None
+    pruned_nodes : int
+    route : tuple[int, ...]
+    search_seconds : float
+    shortcut_calls : int
+    shortcut_process_peak_bytes : int
+    shortcut_seconds : float
+    solver_total_seconds : float
+    status : Literal
+  }
+  class InitialRouteStrategy {
+  }
+  class TSPInstance {
+    coordinates : tuple[tuple[float, float], ...]
+    dimension : int
+    distances : tuple
+    name : str
+    vertex_ids : tuple[int, ...]
+    route_cost(route: Sequence[int]) int
+  }
+  class _DeadlineExceeded {
+  }

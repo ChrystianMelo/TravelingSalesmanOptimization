@@ -1,0 +1,51 @@
+%% Gerado pelo Pyreverse; não edite manualmente.
+classDiagram
+  class traveling_salesman_optimization {
+  }
+  class approximation {
+  }
+  class branch_and_bound {
+  }
+  class empirical_analysis {
+  }
+  class experiment_io {
+  }
+  class experiment_runner {
+  }
+  class experiment_worker {
+  }
+  class initial_solutions {
+  }
+  class main {
+  }
+  class phase_profiling {
+  }
+  class process_metrics {
+  }
+  class tsplib {
+  }
+  traveling_salesman_optimization --> approximation
+  traveling_salesman_optimization --> branch_and_bound
+  traveling_salesman_optimization --> initial_solutions
+  traveling_salesman_optimization --> tsplib
+  approximation --> phase_profiling
+  approximation --> tsplib
+  branch_and_bound --> initial_solutions
+  branch_and_bound --> phase_profiling
+  branch_and_bound --> tsplib
+  empirical_analysis --> approximation
+  empirical_analysis --> experiment_io
+  empirical_analysis --> initial_solutions
+  empirical_analysis --> tsplib
+  experiment_runner --> experiment_io
+  experiment_runner --> initial_solutions
+  experiment_worker --> branch_and_bound
+  experiment_worker --> experiment_io
+  experiment_worker --> initial_solutions
+  experiment_worker --> process_metrics
+  experiment_worker --> tsplib
+  initial_solutions --> approximation
+  initial_solutions --> tsplib
+  main --> branch_and_bound
+  main --> initial_solutions
+  main --> tsplib
