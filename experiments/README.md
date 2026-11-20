@@ -1,5 +1,11 @@
 # Executor de experimentos
 
+O lote já coletado para a inicialização trivial, com configuração, tabela de
+resultados, interpretação preliminar e limitações, está documentado em
+[`docs/analysis/trivial-baseline.md`](../docs/analysis/trivial-baseline.md).
+A adaptação e o piloto do limite das duas arestas estão em
+[`docs/analysis/lower-bound-two-edges.md`](../docs/analysis/lower-bound-two-edges.md).
+
 O módulo `traveling_salesman_optimization.experiment_runner` executa o
 Branch-and-Bound sequencialmente, com um processo novo para cada par
 instância–repetição. A única estratégia registrada nesta etapa é `trivial`;
@@ -22,7 +28,7 @@ Uma lista explícita, três repetições e checkpoints a cada 30 segundos:
 .\scripts\run_experiments.bat `
   data\instances\ulysses16.tsp data\instances\gr24.tsp `
   --output-dir experiments\results\trivial `
-  --strategy trivial --repetitions 3 `
+  --strategy trivial --lower-bound mst --repetitions 3 `
   --timeout-seconds 1800 --checkpoint-interval-seconds 30
 ```
 
@@ -42,6 +48,14 @@ Pastas de entrada são percorridas recursivamente. O identificador combina a
 configuração, o caminho absoluto, o SHA-256 do conteúdo da instância e a
 repetição; uma alteração na instância ou em um parâmetro relevante cria outra
 execução reproduzível.
+
+`--lower-bound mst` seleciona o limite original baseado em AGM e é o padrão;
+`--lower-bound two_edges` seleciona o limite das duas arestas incidentes. A
+opção integra a configuração canônica e, portanto, altera `config_id` e
+`run_id`. A coluna `lower_bound_strategy` também identifica a escolha no CSV e
+nos registros. O schema 2 acrescentou essa coluna; resultados do schema 1
+continuam intactos, mas uma nova execução deve usar outra pasta de saída (ou um
+CSV previamente migrado).
 
 ## Arquivos produzidos
 
@@ -88,6 +102,9 @@ Portanto, tempos de limite inferior, AGM e checkpoint não devem ser somados ao
 tempo de busca. `lower_bound_calls` conta chamadas iniciadas;
 `mst_calls = mst_computations + mst_cache_hits`. Uma computação interrompida
 pelo prazo ainda conta como chamada/computação e conserva o tempo já gasto.
+Com `two_edges`, `mst_calls`, `mst_computations`, `mst_cache_hits` e
+`mst_seconds` permanecem zero; as chamadas e todo o custo do novo cálculo são
+mantidos em `lower_bound_calls` e `lower_bound_seconds`.
 
 Cada estado removido da fila incrementa no máximo um dos contadores:
 `expanded_nodes` quando gera filhos e `pruned_nodes` quando seu limite é maior
