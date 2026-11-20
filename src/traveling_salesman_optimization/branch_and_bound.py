@@ -13,6 +13,10 @@ from traveling_salesman_optimization.initial_solutions import (
     InitialRouteStrategy,
     trivial_initial_route,
 )
+from traveling_salesman_optimization.phase_profiling import (
+    MemoryQuery,
+    collect_approximation_profile,
+)
 from traveling_salesman_optimization.tsplib import TSPInstance
 
 SolverStatus = Literal["running", "optimal", "timeout"]
@@ -28,9 +32,8 @@ class BranchAndBoundResult:
 
     Os tempos usam ``time.perf_counter``, um relógio monotônico. O tempo total
     do solver é a soma de inicialização e busca. O tempo de limite inferior
-    está contido no tempo de busca, e o tempo de AGM está contido tanto no
-    tempo de limite inferior quanto no de busca: esses valores não devem ser
-    somados. Checkpoints também estão contidos no tempo da busca.
+    está contido no tempo de busca e não deve ser somado a ele. Checkpoints
+    também estão contidos no tempo da busca.
 
     ``max_depth`` conta arestas escolhidas depois da origem: a raiz tem
     profundidade zero e uma rota completa de ``n`` vértices tem profundidade
@@ -41,6 +44,7 @@ class BranchAndBoundResult:
     cost: int
     initial_cost: int
     status: SolverStatus
+    generated_nodes: int
     expanded_nodes: int
     pruned_nodes: int
     max_depth: int
@@ -49,12 +53,20 @@ class BranchAndBoundResult:
     solver_total_seconds: float
     lower_bound_calls: int
     lower_bound_seconds: float
-    mst_calls: int
-    mst_computations: int
-    mst_cache_hits: int
-    mst_seconds: float
     checkpoint_calls: int
     checkpoint_seconds: float
+    mst_calls: int
+    mst_seconds: float
+    mst_process_peak_bytes: int
+    matching_calls: int
+    matching_seconds: float
+    matching_process_peak_bytes: int
+    eulerian_circuit_calls: int
+    eulerian_circuit_seconds: float
+    eulerian_circuit_process_peak_bytes: int
+    shortcut_calls: int
+    shortcut_seconds: float
+    shortcut_process_peak_bytes: int
 
     @property
     def optimal_cost(self) -> int | None:
@@ -70,6 +82,124 @@ class _DeadlineExceeded(Exception):
     """Sinal interno para encerrar a busca em um ponto cooperativo."""
 
 
+def _incident_vertices_by_cost(
+    distances: tuple[tuple[int, ...], ...],
+) -> tuple[tuple[int, ...], ...]:
+    """Ordena os outros vértices por custo incidente e, depois, por índice."""
+
+    dimension = len(distances)
+    return tuple(
+        tuple(
+            sorted(
+                (target for target in range(dimension) if target != source),
+                key=lambda target: (distances[source][target], target),
+            )
+        )
+        for source in range(dimension)
+    )
+
+
+def _cheapest_allowed_edges_sum(
+    vertex: int,
+    allowed_mask: int,
+    required: int,
+    distances: tuple[tuple[int, ...], ...],
+    incident_vertices: tuple[tuple[int, ...], ...],
+) -> int | None:
+    """Soma ``required`` arestas distintas permitidas, ou sinaliza inviabilidade."""
+
+    total = 0
+    selected = 0
+    for target in incident_vertices[vertex]:
+        if allowed_mask & (1 << target):
+            total += distances[vertex][target]
+            selected += 1
+            if selected == required:
+                return total
+    return None
+
+
+def _two_edges_lower_bound(
+    distances: tuple[tuple[int, ...], ...],
+    incident_vertices: tuple[tuple[int, ...], ...],
+    current: int,
+    remaining_mask: int,
+    cost_so_far: int,
+) -> int | None:
+    """Adapta o LB das duas arestas aos estados de caminho da busca.
+
+    As arestas já percorridas são obrigatórias. Vértices internos do caminho
+    já têm grau dois; origem e ponta atual têm uma aresta fixa e só podem usar
+    como segunda aresta um vértice ainda não visitado. Um vértice restante pode
+    ligar-se a outro restante ou a uma das duas pontas. Arestas para vértices
+    internos e o fechamento antecipado entre as pontas não são permitidos.
+
+    O retorno ``None`` indica que algum vértice não possui arestas permitidas
+    suficientes para completar grau dois. Estados completos recebem o custo
+    exato, com a volta à origem.
+    """
+
+    dimension = len(distances)
+    if remaining_mask == 0:
+        return cost_so_far + distances[current][0]
+
+    # O projeto aceita as instâncias degeneradas de um ou dois vértices. Para
+    # dois vértices, a única rota usa a mesma aresta na ida e na volta, embora
+    # não existam duas arestas incidentes distintas no grafo simples.
+    if dimension <= 2:
+        if remaining_mask & (remaining_mask - 1):
+            return None
+        remaining_vertex = remaining_mask.bit_length() - 1
+        return cost_so_far + distances[current][remaining_vertex] + distances[remaining_vertex][0]
+
+    visited_count = dimension - remaining_mask.bit_count()
+    if visited_count == 1:
+        # Raiz: nenhum grau foi fixado e todas as arestas entre vértices
+        # distintos estão permitidas.
+        all_vertices_mask = (1 << dimension) - 1
+        contribution_sum = 0
+        for vertex in range(dimension):
+            contribution = _cheapest_allowed_edges_sum(
+                vertex,
+                all_vertices_mask ^ (1 << vertex),
+                2,
+                distances,
+                incident_vertices,
+            )
+            if contribution is None:
+                return None
+            contribution_sum += contribution
+        return (contribution_sum + 1) // 2
+
+    # Cada aresta fixa aparece na contribuição das duas pontas, portanto
+    # 2 * cost_so_far já incorpora toda a rota parcial na soma dos vértices.
+    contribution_sum = 2 * cost_so_far
+    origin_contribution = _cheapest_allowed_edges_sum(
+        0, remaining_mask, 1, distances, incident_vertices
+    )
+    current_contribution = _cheapest_allowed_edges_sum(
+        current, remaining_mask, 1, distances, incident_vertices
+    )
+    if origin_contribution is None or current_contribution is None:
+        return None
+    contribution_sum += origin_contribution + current_contribution
+
+    pending = remaining_mask
+    while pending:
+        vertex_bit = pending & -pending
+        vertex = vertex_bit.bit_length() - 1
+        allowed_mask = (remaining_mask ^ vertex_bit) | 1 | (1 << current)
+        contribution = _cheapest_allowed_edges_sum(
+            vertex, allowed_mask, 2, distances, incident_vertices
+        )
+        if contribution is None:
+            return None
+        contribution_sum += contribution
+        pending ^= vertex_bit
+
+    return (contribution_sum + 1) // 2
+
+
 def solve_branch_and_bound(
     instance: TSPInstance,
     initial_route_strategy: InitialRouteStrategy = trivial_initial_route,
@@ -77,13 +207,14 @@ def solve_branch_and_bound(
     time_limit_seconds: float | None = None,
     progress_callback: ProgressCallback | None = None,
     checkpoint_interval_seconds: float = 30.0,
+    phase_memory_query: MemoryQuery | None = None,
 ) -> BranchAndBoundResult:
     """Resolve ``instance`` por Branch-and-Bound best-first.
 
-    A lógica de exploração é a mesma da versão não instrumentada: o primeiro
-    vértice fica fixo, estados são priorizados pelo limite inferior e a AGM de
-    cada subconjunto é memorizada. O prazo é verificado em pontos seguros do
-    laço principal, da geração de filhos e do Prim. Ao expirar, a função
+    O primeiro vértice fica fixo e os estados são priorizados pelo limite das
+    duas arestas incidentes por vértice apresentado na Aula 12, respeitando as
+    arestas fixas e proibidas pela rota parcial. O prazo é verificado em pontos
+    seguros do laço principal e da geração de filhos. Ao expirar, a função
     devolve a melhor solução viável já encontrada e ``status="timeout"``.
 
     Args:
@@ -94,6 +225,8 @@ def solve_branch_and_bound(
             que a rota inicial estiver disponível.
         progress_callback: Função opcional que persiste um retrato da busca.
         checkpoint_interval_seconds: Intervalo monotônico entre retratos.
+        phase_memory_query: Consulta opcional do pico residente do processo,
+            usada para observar a memória depois das fases das aproximações.
 
     Returns:
         Melhor ciclo conhecido, seu status e todas as métricas coletadas.
@@ -113,7 +246,8 @@ def solve_branch_and_bound(
     solver_started = perf_counter()
     deadline = None if time_limit_seconds is None else solver_started + time_limit_seconds
 
-    initial_route = tuple(initial_route_strategy(instance))
+    with collect_approximation_profile(phase_memory_query) as approximation_profile:
+        initial_route = tuple(initial_route_strategy(instance))
     if len(initial_route) != dimension or set(initial_route) != set(range(dimension)):
         raise ValueError("a estratégia inicial deve retornar cada índice uma única vez")
     if initial_route[0] != 0:
@@ -128,18 +262,20 @@ def solve_branch_and_bound(
     initialization_seconds = initialization_finished - solver_started
     search_started = initialization_finished
 
+    mst_profile = approximation_profile.value("mst")
+    matching_profile = approximation_profile.value("matching")
+    eulerian_profile = approximation_profile.value("eulerian_circuit")
+    shortcut_profile = approximation_profile.value("shortcut")
+
+    generated_nodes = 0
     expanded_nodes = 0
     pruned_nodes = 0
     max_depth = 0
     lower_bound_calls = 0
     lower_bound_seconds = 0.0
-    mst_calls = 0
-    mst_computations = 0
-    mst_cache_hits = 0
-    mst_seconds = 0.0
     checkpoint_calls = 0
     checkpoint_seconds = 0.0
-    mst_cache: dict[int, int] = {}
+    incident_vertices: tuple[tuple[int, ...], ...] | None = None
     next_checkpoint = search_started
 
     def check_deadline(now: float | None = None) -> None:
@@ -154,6 +290,7 @@ def solve_branch_and_bound(
             cost=best_cost,
             initial_cost=initial_cost,
             status=status,
+            generated_nodes=generated_nodes,
             expanded_nodes=expanded_nodes,
             pruned_nodes=pruned_nodes,
             max_depth=max_depth,
@@ -162,12 +299,20 @@ def solve_branch_and_bound(
             solver_total_seconds=measured_at - solver_started,
             lower_bound_calls=lower_bound_calls,
             lower_bound_seconds=lower_bound_seconds,
-            mst_calls=mst_calls,
-            mst_computations=mst_computations,
-            mst_cache_hits=mst_cache_hits,
-            mst_seconds=mst_seconds,
             checkpoint_calls=checkpoint_calls,
             checkpoint_seconds=checkpoint_seconds,
+            mst_calls=mst_profile.calls,
+            mst_seconds=mst_profile.seconds,
+            mst_process_peak_bytes=mst_profile.process_peak_bytes,
+            matching_calls=matching_profile.calls,
+            matching_seconds=matching_profile.seconds,
+            matching_process_peak_bytes=matching_profile.process_peak_bytes,
+            eulerian_circuit_calls=eulerian_profile.calls,
+            eulerian_circuit_seconds=eulerian_profile.seconds,
+            eulerian_circuit_process_peak_bytes=eulerian_profile.process_peak_bytes,
+            shortcut_calls=shortcut_profile.calls,
+            shortcut_seconds=shortcut_profile.seconds,
+            shortcut_process_peak_bytes=shortcut_profile.process_peak_bytes,
         )
 
     def maybe_checkpoint(*, force: bool = False) -> None:
@@ -183,69 +328,29 @@ def solve_branch_and_bound(
         checkpoint_calls += 1
         next_checkpoint = perf_counter() + checkpoint_interval_seconds
 
-    def minimum_spanning_tree_cost(vertices_mask: int) -> int:
-        """Calcula por Prim a AGM do subconjunto, com cache por bitmask."""
-
-        nonlocal mst_calls, mst_computations, mst_cache_hits, mst_seconds
-        mst_calls += 1
-        call_started = perf_counter()
-        try:
-            cached = mst_cache.get(vertices_mask)
-            if cached is not None:
-                mst_cache_hits += 1
-                return cached
-
-            mst_computations += 1
-            if vertices_mask == 0 or vertices_mask & (vertices_mask - 1) == 0:
-                mst_cache[vertices_mask] = 0
-                return 0
-
-            first_bit = vertices_mask & -vertices_mask
-            first = first_bit.bit_length() - 1
-            remaining_mask = vertices_mask ^ first_bit
-            connection_cost = {
-                vertex: distances[first][vertex]
-                for vertex in range(dimension)
-                if remaining_mask & (1 << vertex)
-            }
-            total = 0
-
-            while remaining_mask:
-                check_deadline()
-                next_vertex = min(
-                    (vertex for vertex in connection_cost if remaining_mask & (1 << vertex)),
-                    key=connection_cost.__getitem__,
-                )
-                total += connection_cost[next_vertex]
-                next_bit = 1 << next_vertex
-                remaining_mask ^= next_bit
-                for vertex in connection_cost:
-                    if remaining_mask & (1 << vertex):
-                        connection_cost[vertex] = min(
-                            connection_cost[vertex], distances[next_vertex][vertex]
-                        )
-            mst_cache[vertices_mask] = total
-            return total
-        finally:
-            mst_seconds += perf_counter() - call_started
-
     def lower_bound(current: int, remaining_mask: int, cost_so_far: int) -> int:
         """Limita inferiormente uma extensão e mede a chamada completa."""
 
-        nonlocal lower_bound_calls, lower_bound_seconds
+        nonlocal incident_vertices, lower_bound_calls, lower_bound_seconds
         lower_bound_calls += 1
         call_started = perf_counter()
         try:
             check_deadline(call_started)
             if remaining_mask == 0:
                 return cost_so_far + distances[current][0]
-            remaining = (vertex for vertex in range(dimension) if remaining_mask & (1 << vertex))
-            from_current = min(distances[current][vertex] for vertex in remaining)
-            remaining = (vertex for vertex in range(dimension) if remaining_mask & (1 << vertex))
-            to_origin = min(distances[vertex][0] for vertex in remaining)
-            return (
-                cost_so_far + minimum_spanning_tree_cost(remaining_mask) + from_current + to_origin
+            if incident_vertices is None:
+                incident_vertices = _incident_vertices_by_cost(distances)
+            bound = _two_edges_lower_bound(
+                distances,
+                incident_vertices,
+                current,
+                remaining_mask,
+                cost_so_far,
             )
+            # Um estado inviável pode ser podado com segurança usando o limite
+            # superior corrente. Como a incumbente só diminui, ele continuará
+            # podável quando sair da fila.
+            return best_cost if bound is None else bound
         finally:
             lower_bound_seconds += perf_counter() - call_started
 
@@ -261,6 +366,7 @@ def solve_branch_and_bound(
             frontier,
             (root_bound, next(insertion_order), 0, all_except_origin, 0, (0,)),
         )
+        generated_nodes += 1
 
         while frontier:
             check_deadline()
@@ -288,6 +394,7 @@ def solve_branch_and_bound(
                 child_bound = lower_bound(next_vertex, child_remaining, child_cost)
                 child_route = partial_route + (next_vertex,)
                 max_depth = max(max_depth, len(child_route) - 1)
+                generated_nodes += 1
                 heappush(
                     frontier,
                     (
