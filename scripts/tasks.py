@@ -12,6 +12,7 @@ COMMANDS = {
     "test": [["pytest", "-v", "tests"]],
     "run": [["traveling_salesman_optimization.main"]],
     "experiment": [["traveling_salesman_optimization.experiment_runner"]],
+    "analysis": [["traveling_salesman_optimization.empirical_analysis"]],
 }
 
 
@@ -20,8 +21,8 @@ def main() -> int:
     parser.add_argument("task", choices=COMMANDS)
     parser.add_argument("task_args", nargs=argparse.REMAINDER)
     args = parser.parse_args()
-    if args.task not in {"run", "experiment"} and args.task_args:
-        parser.error("argumentos adicionais são aceitos somente por run e experiment")
+    if args.task not in {"run", "experiment", "analysis"} and args.task_args:
+        parser.error("argumentos adicionais são aceitos somente por run, experiment e analysis")
 
     for command in COMMANDS[args.task]:
         result = subprocess.run(
