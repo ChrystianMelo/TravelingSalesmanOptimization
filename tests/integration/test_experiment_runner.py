@@ -49,12 +49,18 @@ def _common_arguments(instance: Path, output_dir: Path) -> list[str]:
     ]
 
 
-def test_runner_collects_resumes_and_explicitly_reruns(tmp_path: Path) -> None:
+def test_runner_collects_resumes_and_explicitly_reruns(tmp_path: Path, capsys: object) -> None:
     instance_path = _write_instance(tmp_path / "crossing.tsp")
     output_dir = tmp_path / "results"
     arguments = _common_arguments(instance_path, output_dir)
 
     assert main(arguments) == 0
+    output = capsys.readouterr().out  # type: ignore[attr-defined]
+    assert "  0.0% (0/1)" in output
+    assert "100.0% (1/1)" in output
+    assert "RUN " not in output
+    assert "DONE " not in output
+    assert "SKIP " not in output
     first_csv = (output_dir / "results.csv").read_bytes()
     rows = _read_rows(output_dir)
     assert len(rows) == 1
@@ -78,6 +84,8 @@ def test_runner_collects_resumes_and_explicitly_reruns(tmp_path: Path) -> None:
     assert instance.route_cost(tuple(index_by_id[vertex_id] for vertex_id in route)) == 40
 
     assert main(arguments) == 0
+    resumed_output = capsys.readouterr().out  # type: ignore[attr-defined]
+    assert "100.0% (1/1)" in resumed_output
     assert (output_dir / "results.csv").read_bytes() == first_csv
 
     assert main([*arguments, "--rerun"]) == 0
@@ -130,7 +138,9 @@ def test_individual_failure_is_recorded_and_batch_continues(tmp_path: Path) -> N
     assert error["optimal_cost"] == "NA"
 
 
-def test_runner_executes_all_strategies_in_one_comparable_panel(tmp_path: Path) -> None:
+def test_runner_executes_all_strategies_in_one_comparable_panel(
+    tmp_path: Path, capsys: object
+) -> None:
     instance_path = _write_instance(tmp_path / "crossing.tsp")
     output_dir = tmp_path / "all-strategies"
     arguments = _common_arguments(instance_path, output_dir)
@@ -138,6 +148,9 @@ def test_runner_executes_all_strategies_in_one_comparable_panel(tmp_path: Path) 
     arguments.append("--all-strategies")
 
     assert main(arguments) == 0
+    output = capsys.readouterr().out  # type: ignore[attr-defined]
+    assert "  0.0% (0/5)" in output
+    assert "100.0% (5/5)" in output
 
     rows = _read_rows(output_dir)
     assert len(rows) == 5

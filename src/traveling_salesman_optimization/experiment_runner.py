@@ -90,6 +90,35 @@ CSV_FIELDS = [
 ]
 
 
+class ProgressBar:
+    """Exibe o progresso agregado do lote em uma única linha do terminal."""
+
+    def __init__(self, label: str = "Experimentos", *, width: int = 30) -> None:
+        self.label = label
+        self.width = width
+        self._active = False
+
+    def update(self, completed: int, total: int) -> None:
+        percentage = completed / total * 100 if total else 100.0
+        filled = round(self.width * completed / total) if total else self.width
+        bar = "#" * filled + "-" * (self.width - filled)
+        finished = completed >= total
+        sys.stdout.write(
+            f"\r{self.label} [{bar}] {percentage:5.1f}% ({completed}/{total})"
+            + ("\n" if finished else "")
+        )
+        sys.stdout.flush()
+        self._active = not finished
+
+    def finish(self) -> None:
+        """Encerra a linha da barra quando o lote termina antecipadamente."""
+
+        if self._active:
+            sys.stdout.write("\n")
+            sys.stdout.flush()
+            self._active = False
+
+
 def _utc_now() -> str:
     return datetime.now(UTC).isoformat(timespec="milliseconds")
 
@@ -598,21 +627,18 @@ def main(arguments: Sequence[str] | None = None) -> int:
     errors = 0
     executed = 0
     skipped = 0
+    completed = 0
+    progress = ProgressBar()
+    progress.update(completed, len(planned))
     for run_id, spec in planned.items():
         previous_position = row_positions.get(run_id)
         previous = rows[previous_position] if previous_position is not None else None
         if not args.rerun and previous is not None and previous["status"] in COMPLETED_STATUSES:
-            print(
-                f"SKIP {run_id} {Path(spec['instance_path']).name} "
-                f"strategy={spec['initialization_strategy']} rep={spec['repetition']}"
-            )
             skipped += 1
+            completed += 1
+            progress.update(completed, len(planned))
             continue
 
-        print(
-            f"RUN  {run_id} {Path(spec['instance_path']).name} "
-            f"strategy={spec['initialization_strategy']} rep={spec['repetition']}"
-        )
         try:
             record = _execute_one(spec, output_dir, root)
         except Exception as error:
@@ -627,11 +653,10 @@ def main(arguments: Sequence[str] | None = None) -> int:
         executed += 1
         if record["status"] == "error":
             errors += 1
-        print(
-            f"DONE {run_id} status={record['status']} "
-            f"best={record['best_route_cost']} total={record['solver_total_seconds']}s"
-        )
+        completed += 1
+        progress.update(completed, len(planned))
         if record.get("_batch_interrupted"):
+            progress.finish()
             print("SUMMARY lote interrompido pelo usuário; checkpoint preservado")
             print(f"CSV {results_path}")
             return 130
