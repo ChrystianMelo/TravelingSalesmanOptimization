@@ -56,6 +56,11 @@ coverage.xml
 .env.*
 !.env.example
 
+# Raw Codex rollout logs
+docs/prompt/raw/*.jsonl
+docs/prompts/raw/**/*.jsonl
+!docs/prompt/raw/historicobruto.txt
+
 # Jupyter Notebook checkpoints
 .ipynb_checkpoints/
 
