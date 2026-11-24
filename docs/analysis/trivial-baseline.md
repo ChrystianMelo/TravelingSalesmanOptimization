@@ -1,9 +1,12 @@
 # Análise do baseline experimental: inicialização trivial
 
-Este documento registra o lote já coletado para o Branch-and-Bound best-first
-com inicialização trivial. Ele é um retrato dos dados de
+Este documento registra o lote que caracteriza a etapa inicial da evolução
+experimental: o Branch-and-Bound best-first com inicialização trivial. Os
+artefatos operacionais permanecem em
 [`experiments/results/trivial/results.csv`](../../experiments/results/trivial/results.csv),
-e não substitui o CSV nem os registros JSON de cada execução.
+e o CSV histórico também está preservado em
+[`experiments/results/initial/trivial/results.csv`](../../experiments/results/initial/trivial/results.csv).
+O texto não substitui o CSV nem os registros JSON de cada execução.
 
 ## Identificação do lote
 

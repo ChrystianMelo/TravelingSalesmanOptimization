@@ -33,10 +33,10 @@ This work audits and empirically evaluates a best-first Branch-and-Bound solver
 for the geometric Traveling Salesman Problem, two approximation algorithms and
 five upper-bound initialization strategies.  The balanced analysis comprises
 75 runs over 15 EUC\_2D instances with 10--70 vertices and a limit of 1,800
-seconds per run.  Implementation v5 uses state dominance and pruning before
-heap insertion and proved optimality in 54 runs, versus 25 in the preceding
-implementation; ten instances were solved by all strategies and an eleventh by
-four of them.  Convex-hull insertion produced the best initial route in every
+seconds per run.  The final implementation uses state dominance and pruning
+before heap insertion and proved optimality in 54 runs, versus 25 in the
+intermediate implementation; ten instances were solved by all strategies and
+an eleventh by four of them.  Convex-hull insertion produced the best initial route in every
 instance and a mean gap of 2.15\% over the 14 instances with a reference
 optimum.  Considered as independent solvers, Christofides produced a lower-cost
 route than Twice-around-the-tree on all 15 instances; their mean gaps were
@@ -56,9 +56,9 @@ Este trabalho audita e avalia empiricamente um Branch-and-Bound best-first para
 o Problema do Caixeiro Viajante geométrico, dois algoritmos aproximativos e
 cinco estratégias de inicialização do limite superior. A análise balanceada
 reúne 75 execuções sobre 15 instâncias EUC\_2D com 10 a 70 vértices e limite de
-1.800 segundos por execução. A implementação v5 usa dominância de estados e
-poda antes da inserção na heap e provou a otimalidade em 54 execuções, contra 25
-na implementação anterior; dez instâncias foram resolvidas pelas cinco
+1.800 segundos por execução. A versão final usa dominância de estados e poda
+antes da inserção na heap e provou a otimalidade em 54 execuções, contra 25 na
+etapa intermediária; dez instâncias foram resolvidas pelas cinco
 estratégias e uma décima primeira por quatro delas. A inserção baseada no fecho
 convexo produziu a melhor rota inicial em todas as instâncias e gap médio de
 2,15\% nas 14 com ótimo de referência. Como solvers independentes, Christofides
@@ -79,7 +79,7 @@ apesar do aumento no número de provas concluídas.
 
 O Problema do Caixeiro Viajante (TSP) pede um ciclo hamiltoniano de custo mínimo
 e combina uma formulação simples com custo computacional exponencial para
-soluções exatas em geral~\cite{lawler1985,applegate2006}. Para uma permutação
+soluções exatas em geral~\cite{applegate2006}. Para uma permutação
 $\pi$ dos $n$ vértices, o objetivo é minimizar
 
 \[
@@ -160,8 +160,8 @@ $(\text{último},\text{restantes})$; prefixos dominados, que possuem as mesmas
 continuações possíveis, são descartados. O compartilhamento reduz o custo por
 estado, mas heap, dicionário e nós ainda podem crescer exponencialmente.
 
-Essa é também a representação medida pelo painel otimizado v5. Para avaliar a
-mudança, o artigo conserva como referência o painel imediatamente anterior: nele,
+Essa é também a representação medida pelo painel final. Para avaliar a mudança,
+o artigo conserva como referência a etapa intermediária: nela,
 cada estado guardava uma tupla com o prefixo completo, não havia mapa de
 dominância e o filho era enfileirado mesmo quando seu limite já alcançava a
 incumbente. As impressões digitais distintas impedem que a retomada misture as
@@ -172,22 +172,35 @@ execução por célula, mas usa as mesmas 75 combinações, entradas e limite de
 
 O primeiro vértice permanece fixo para eliminar ciclos equivalentes por
 rotação. A busca é best-first: em cada passo remove-se globalmente o estado de
-menor limite. Para um caminho parcial $P$, o limite das duas arestas pode ser
-escrito como
+menor limite, conforme a formulação apresentada na Aula 12~\cite{vimieiro2026aula12}.
+Para um caminho parcial $P$, o limite das duas arestas pode ser escrito como
 
 \[
   L(P)=\left\lceil\frac{1}{2}\sum_{v\in V} c_v(P)\right\rceil,
 \]
 
 em que $c_v(P)$ soma as arestas já fixadas em $v$ e as arestas permitidas mais
-baratas necessárias para completar grau dois. Vértices internos do caminho já
-têm grau dois; origem e ponta precisam de uma aresta adicional; e vértices não
-visitados precisam de duas. O fechamento prematuro entre as pontas e ligações a
-vértices internos são proibidos. Como toda conclusão hamiltoniana precisa
-escolher arestas dentro desses conjuntos permitidos, a soma independente por
-vértice não excede o custo de qualquer conclusão; em uma folha, o limite é o
-custo exato incluindo o retorno à origem. As listas de arestas incidentes são
-ordenadas uma vez e reutilizadas nas chamadas seguintes.
+baratas necessárias para completar grau dois. Fora da raiz, vértices internos
+do caminho já têm grau dois; origem e ponta precisam de uma aresta adicional;
+e vértices não visitados precisam de duas. No estado raiz, o caminho contém
+somente a origem e nenhuma aresta está fixada: a origem ainda tem grau zero e,
+portanto, também precisa de duas arestas incidentes. O fechamento prematuro
+entre as pontas e ligações a vértices internos são proibidos.
+
+Para qualquer conclusão hamiltoniana viável $H$ que estenda $P$, as duas
+arestas de $H$ incidentes a cada vértice têm custo total pelo menos
+$c_v(P)$. Ao somar sobre os vértices, cada aresta de $H$ é contada uma vez em
+cada extremidade; logo,
+
+\[
+  \sum_{v\in V} c_v(P) \leq 2\,\operatorname{custo}(H).
+\]
+
+Assim, metade da soma das contribuições não excede o custo de nenhuma conclusão
+viável. Como os custos do projeto são inteiros, o arredondamento para cima
+preserva essa desigualdade e produz o limite admissível $L(P)$. Em uma folha, o
+limite é o custo exato incluindo o retorno à origem. As listas de arestas
+incidentes são ordenadas uma vez e reutilizadas nas chamadas seguintes.
 
 O limite superior inicial do Branch-and-Bound é fornecido por uma função
 substituível que retorna uma permutação dos índices internos. Foram
@@ -217,10 +230,12 @@ documentação técnica.
 
 \subsection{Algoritmos aproximativos}
 
-A AGM compartilhada pelas duas aproximações é calculada pelo algoritmo de
-Prim denso em $O(n^2)$, apropriado ao grafo completo armazenado como matriz. Em
-Twice-around-the-tree, as arestas da AGM são duplicadas e o circuito euleriano
-é construído explicitamente por Hierholzer antes da aplicação dos atalhos.
+A implementação segue as etapas dos algoritmos aproximativos apresentadas na
+Aula 13~\cite{vimieiro2026aula13}. A AGM compartilhada pelas duas aproximações
+é calculada pelo algoritmo de Prim denso em $O(n^2)$, apropriado ao grafo
+completo armazenado como matriz. Em Twice-around-the-tree, as arestas da AGM
+são duplicadas e o circuito euleriano é construído explicitamente por
+Hierholzer antes da aplicação dos atalhos.
 
 Christofides~\cite{christofides1976} seleciona os vértices de grau ímpar da AGM, constrói o grafo
 completo induzido e usa o Blossom disponibilizado pelo NetworkX para obter o
@@ -327,8 +342,9 @@ são tratados posteriormente pela representação comum do projeto.
 
 O solver separa leitura da instância, construção da incumbente e busca exata.
 Dentro da busca, mede individualmente as chamadas do limite inferior e o custo
-dos checkpoints. Na instrumentação v5, um nó gerado é a raiz ou qualquer filho
-considerado, mesmo que a dominância o descarte antes do limite. Um nó expandido
+dos checkpoints. Na versão final (\texttt{instrumentation\_version=5}), um nó
+gerado é a raiz ou qualquer filho considerado, mesmo que a dominância o descarte
+antes do limite. Um nó expandido
 é retirado da heap e gera filhos. O contador de poda agrega dominância, teste de
 limite e, ao concluir a prova, a fronteira remanescente cujo menor limite já não
 melhora a incumbente. Por isso, \texttt{lower\_bound\_calls} pode ser menor que
@@ -368,19 +384,21 @@ promovida a ótimo.
 
 Ferramentas de inteligência artificial generativa foram utilizadas como apoio
 à implementação, à revisão e à validação do projeto. Um resumo dos prompts
-utilizados está disponível no diretório
-\url{https://github.com/ChrystianMelo/TravelingSalesmanOptimization/tree/main/docs/prompts}.
+utilizados está disponível em
+\path{docs/prompts/historico.md}.
 
-\subsection{Exemplo 1: correção da DFS para best-first}
+\subsection{Exemplo 1: avaliação da DFS e adoção de best-first}
 
 \subsubsection{Divergência identificada}
 
-Na primeira implementação do Branch-and-Bound, a IA utilizou busca em
-profundidade recursiva (DFS). Durante a revisão, o aluno identificou que essa
-ordem de exploração não correspondia à estratégia discutida em aula e solicitou
-explicitamente sua substituição por busca best-first com fila de prioridade.
-Embora a DFS também pudesse encontrar a solução ótima, a correção era
-necessária para que o algoritmo expandisse sempre o subproblema mais promissor
+Antes da primeira implementação do Branch-and-Bound, uma discussão com outro
+agente de IA sugeriu o uso de busca em profundidade recursiva (DFS). Essa
+sugestão foi adotada no pedido inicial e materializada na primeira versão do
+solver. Durante a revisão, o aluno confrontou essa escolha com o material da
+disciplina, identificou que ela não era a mais adequada à proposta do trabalho
+e solicitou explicitamente sua substituição por busca best-first com fila de
+prioridade. Embora a DFS também pudesse preservar a exatidão, a mudança alinhou
+o controle da fronteira ao critério de expandir o subproblema mais promissor
 entre todos os estados ativos.
 
 \subsubsection{Fundamentação algorítmica da troca}
@@ -392,17 +410,17 @@ os filhos de um nó podem possuir limites inferiores distintos e, portanto,
 prioridades diferentes. A orientação dos slides é avaliar os filhos e priorizar
 aquele com a menor estimativa, isto é, o mais promissor. Essa ordem de
 exploração é denominada busca best-first e requer uma fila de prioridade para
-armazenar os nós ainda não visitados.\footnote{Material da Aula 12 de DCC207,
-``Soluções exatas para problemas difíceis (branch-and-bound)'', especialmente os
-slides 3 e 6.}
+armazenar os nós ainda não visitados~\cite{vimieiro2026aula12}.
 
 A DFS usa implicitamente uma pilha e escolhe o estado gerado mais recentemente,
 sem comparar sua estimativa com a dos demais estados ativos. Ela preservaria a
 correção da enumeração e das podas, mas não implementaria o critério de controle
 best-first adotado na disciplina. Na implementação corrigida, o menor limite
-inferior define a prioridade global. A expectativa é que a busca concentre
-primeiro o trabalho nos ramos mais promissores e encontre cedo uma boa solução
-incumbente, o que pode tornar a poda dos demais ramos mais efetiva.
+inferior define a prioridade global. Em termos algorítmicos, essa política
+concentra primeiro o trabalho nos ramos considerados mais promissores e pode
+encontrar cedo uma incumbente capaz de favorecer podas posteriores. Essa é uma
+motivação para a ordem de exploração, não uma evidência de ganho de desempenho
+neste projeto.
 
 \subsubsection{Correção da fronteira de busca}
 
@@ -419,10 +437,14 @@ os testes dos contadores também foram atualizados. Na instância de rota cruzad
 usada nos testes, a DFS registrava 3 estados expandidos e 3 podados, enquanto a
 busca best-first passou a registrar 5 expandidos e 4 podados; ambas encontraram
 o custo ótimo 40. A suíte completa foi executada novamente após a correção.
+Esse caso confirma a mudança da política de controle e a preservação da
+correção, mas não demonstra superioridade temporal ou redução geral da árvore.
+Não foi realizado um experimento controlado que isolasse DFS e best-first para
+medir desempenho.
 
 \subsection{Exemplo 2: limite inferior e uso de memória}
 
-Uma versão anterior, também produzida com assistência de IA, calculava o limite
+A implementação inicial, também produzida com assistência de IA, calculava o limite
 inferior com uma AGM dos vértices restantes e armazenava prefixos completos em
 cada estado. No primeiro baseline, o limite inferior consumiu 91,36\% do tempo
 de busca, seis execuções ultrapassaram 5~GiB e três casos com até 35 vértices
@@ -430,11 +452,12 @@ atingiram o prazo. Esses dados motivaram uma revisão do código, em vez de apen
 ajustes sintáticos.
 
 O limite baseado em AGM foi substituído pelo limite das duas arestas discutido
-na disciplina. A mudança exigiu explicitar, para cada profundidade, quais
-arestas estavam fixadas ou proibidas; simplesmente somar as duas menores arestas
-globais de cada vértice não representaria corretamente um caminho parcial. A
-admissibilidade foi testada em prefixos pequenos comparando o limite com a
-melhor conclusão obtida por força bruta, além de casos de um e dois vértices.
+na disciplina~\cite{vimieiro2026aula12}. A mudança exigiu explicitar, para cada
+profundidade, quais arestas estavam fixadas ou proibidas; simplesmente somar as
+duas menores arestas globais de cada vértice não representaria corretamente um
+caminho parcial. A admissibilidade foi testada em prefixos pequenos comparando o
+limite com a melhor conclusão obtida por força bruta, além de casos de um e dois
+vértices.
 
 A representação da rota também foi refatorada para nós com referência ao pai,
 eliminando a cópia integral do prefixo em cada filho. O teste
@@ -450,10 +473,9 @@ com o custo espacial do mapa de dominância.
 
 \subsection{Rastreabilidade e validação do código assistido}
 
-Os prompts foram resumidos em
-\path{docs/prompts/configuracao_inicial_do_projeto.md} e
-\path{docs/prompts/implementacao_das_estrategias_do_tsp.md}. As saídas da
-IA não foram aceitas como evidência de correção: o parser, o custo de ciclos, a
+Os prompts, as intervenções do aluno e as contribuições da IA foram reunidos em
+\path{docs/prompts/historico.md}. As saídas da IA não foram aceitas
+como evidência de correção: o parser, o custo de ciclos, a
 admissibilidade do limite, as cinco estratégias, o matching perfeito e a
 comparação do solver com força bruta possuem testes automatizados. As mudanças
 que afetam a ordem da busca atualizaram também os testes dos contadores, pois
@@ -463,13 +485,34 @@ obter o mesmo custo ótimo não basta para validar a arquitetura exigida.
 
 \subsection{Protocolo experimental}
 
+A evolução experimental foi preservada em três etapas. A etapa
+\textbf{inicial}, em \path{experiments/results/initial/}, reúne o baseline
+trivial da implementação de referência e o piloto do limite das duas arestas,
+sob schemas anteriores e sem um painel completo das cinco estratégias. A etapa
+\textbf{intermediária}, em \path{experiments/results/intermediate/}, incorpora
+as cinco inicializações, o profiling por subrotina e a instrumentação que
+evidenciou o custo do limite, o crescimento da fronteira e a pressão de memória.
+A etapa \textbf{final}, em \path{experiments/results/final/}, mede a
+implementação após dominância de estados, poda antes da inserção na heap e
+compartilhamento estrutural dos prefixos de rota.
+
+O CSV intermediário preserva 96 linhas acumuladas. Para a comparação histórica,
+foram selecionadas as mesmas 75 células do painel final por SHA-256 da
+instância, estratégia e repetição. A etapa inicial permanece como evidência da
+origem dos gargalos, mas não é agregada às regressões nem à comparação pareada,
+pois não possui o mesmo schema nem a mesma cobertura experimental. Os
+\texttt{run\_id}, \texttt{config\_id}, hashes das instâncias e impressões
+digitais do código foram mantidos sem alteração nas três etapas.
+
 O conjunto principal contém 15 instâncias com 10 a 70 vértices. Doze delas
 (80\%) têm no máximo 40 vértices e três, com 51, 52 e 70 vértices, formam a
 faixa de estresse. A instância sintética \texttt{example\_crossing}, com quatro
 vértices, foi usada para validar o executor, mas excluída dos modelos por estar
-fora da faixa pedida. Todas as instâncias usam coordenadas EUC\_2D; doze são
-subamostras reprodutíveis de instâncias maiores da TSPLIB~\cite{reinelt1991} e
-três são instâncias completas.
+fora da faixa pedida. Diante da disponibilidade limitada de instâncias originais
+da TSPLIB que atendiam simultaneamente à faixa dimensional e à função de custo
+EUC\_2D, a base foi complementada com doze subinstâncias reprodutíveis de
+instâncias maiores da biblioteca~\cite{reinelt1991}; as outras três entradas são
+instâncias completas.
 
 Na faixa de 10 a 35 vértices, foram construídas duas geometrias por dimensão.
 Para cada par origem--dimensão, \texttt{random.Random(s).sample(ids,n)} sorteou
@@ -483,15 +526,23 @@ e \texttt{rd100}/202; \texttt{pr107}/301 e \texttt{rat99}/302;
 CSV identificam o arquivo efetivamente executado. As subinstâncias são entradas
 novas e não herdam o ótimo da origem.
 
+Essa composição recebeu respaldo em esclarecimento posterior do professor no
+fórum da disciplina. A pergunta descrevia a complementação das três instâncias
+originais por entradas derivadas de coordenadas da TSPLIB, com recálculo
+EUC\_2D e identificação separada. Em resposta, publicada em 24 de novembro de
+2026, o professor afirmou: ``Qualquer instância com função de custo que seja uma
+distância pode ser usada''\footnote{Fórum da disciplina, tópico ``Instâncias dos
+experimentos no TP2'', resposta publicada em 24 de novembro de 2026.}.
+
 Esse desenho cobre regularmente seis dimensões e usa duas geometrias em cada
 uma, reduzindo a dependência de uma única entrada por tamanho e concentrando o
-painel na transição empiricamente tratável pelo solver exato. Trata-se de uma
-decisão metodológica do experimento, complementada pelas três instâncias
-TSPLIB completas de estresse, e não de uma suposição de que subamostragem
-preserva a dificuldade ou o ótimo da instância original.
+painel na transição empiricamente tratável pelo solver exato. O esclarecimento
+respalda a composição da base experimental, mas não implica que a subamostragem
+preserve a dificuldade ou o ótimo da instância original; por isso, cada entrada
+derivada permanece identificada e analisada como uma instância distinta.
 
 Cada combinação de instância e estratégia recebeu 1.800 segundos, com checkpoint
-a cada 30 s e tolerância externa de 10 s. O lote v5 contém exatamente uma
+a cada 30 s e tolerância externa de 10 s. O painel final contém exatamente uma
 repetição de cada combinação, totalizando $15\times5=75$ execuções balanceadas,
 75 identificadores únicos e nenhum erro. A instância sintética não integra esse
 CSV. Uma única repetição impede intervalos de confiança e torna as comparações
@@ -514,20 +565,21 @@ foi coletado em uma única máquina e sistema
 operacional, os valores absolutos de tempo e memória continuam específicos
 desse ambiente.
 
-O painel v5 mede a representação por referências ao pai, a dominância de estados
-e a poda antes da heap descritas na Seção de auditoria. O CSV anterior possui 96
-linhas; para a comparação histórica, ele foi casado ao v5 por SHA-256 da
-instância, estratégia e repetição, resultando nas mesmas 75 células e em custos
-iniciais idênticos. A Tabela~\ref{tab:before-v5} sintetiza esse recorte.
+O painel final mede a representação por referências ao pai, a dominância de
+estados e a poda antes da heap descritas na Seção de auditoria. O CSV
+intermediário possui 96 linhas; para a comparação histórica, ele foi pareado ao
+final por SHA-256 da instância, estratégia e repetição, resultando nas mesmas 75
+células e em custos iniciais idênticos. A
+Tabela~\ref{tab:intermediate-final} sintetiza esse recorte.
 
 \begin{table}[H]
   \centering
-  \caption{Comparação descritiva das mesmas 75 células antes e na v5.}
-  \label{tab:before-v5}
+  \caption{Comparação descritiva das mesmas 75 células nas etapas intermediária e final.}
+  \label{tab:intermediate-final}
   \footnotesize
   \begin{tabular}{lrrr}
     \hline
-    Métrica & Antes & v5 & Variação \\
+    Métrica & Intermediária & Final & Variação \\
     \hline
     Provas de otimalidade             & 25 & 54 & \textbf{$+29$} \\
     Timeouts                           & 50 & 21 & \textbf{$-29$} \\
@@ -540,8 +592,8 @@ iniciais idênticos. A Tabela~\ref{tab:before-v5} sintetiza esse recorte.
 \end{table}
 
 {\footnotesize\raggedright Os CSVs fonte permanecem preservados em
-\path{experiments/results/current/results.csv} e
-\path{experiments/results/optimized-v5/results.csv}.\par}
+\path{experiments/results/intermediate/results.csv} e
+\path{experiments/results/final/results.csv}.\par}
 
 As transições confirmam que as mesmas \textbf{29} células antes censuradas
 passaram a provar a otimalidade: foram 25
@@ -550,19 +602,20 @@ passaram a provar a otimalidade: foram 25
 \textit{timeout}$\rightarrow$\textit{timeout}, sem regressão de status.
 Chamadas do limite, expansões e tempo de busca mantêm as mesmas definições, e o
 pico usa o mesmo método. Em contraste, estados gerados e podados não aparecem
-na tabela porque a posição da contagem e a agregação da poda mudaram na v5.
+na tabela porque a posição da contagem e a agregação da poda mudaram na etapa
+final.
 
 O tempo da tabela é a soma observada do lote, que combina provas e execuções
 censuradas; sua redução não é um \textit{speedup} individual. Os lotes também
 ocorreram em dias distintos, sem controle de carga ou memória livre. O maior
-pico pertence a células e status diferentes nas duas versões e aumentou na v5.
+pico pertence a células e status diferentes nas duas etapas e aumentou na final.
 Como as alterações foram aplicadas em conjunto e há uma repetição por célula,
 os dados demonstram ganho de capacidade do pacote de refatoração, mas não
 identificam o efeito causal de cada alteração isolada.
 
 As características e os gaps foram gerados em
-\path{experiments/results/optimized-v5/analysis/enriched_results.csv}. Há
-ótimo de referência para 14 instâncias: onze foram certificadas no lote v5 e os
+\path{experiments/results/final/analysis/enriched_results.csv}. Há ótimo de
+referência para 14 instâncias: onze foram certificadas no painel final e os
 valores externos 426, 7.542 e 675, indexados pelo SHA-256, foram usados para
 \texttt{eil51}, \texttt{berlin52} e \texttt{st70}. Somente
 \texttt{sub\_ch130\_35\_seed601} permanece sem referência; nenhuma incumbente
@@ -621,7 +674,7 @@ condições de execução, não apenas de $n$.
 Foram censuradas 21 das 75 execuções balanceadas (28\%). Quatro instâncias
 atingiram o prazo nas cinco estratégias; em
 \texttt{sub\_gil262\_35\_seed602}, apenas Christofides foi censurado. A taxa é
-menor que os 66,7\% do painel anterior, mas ainda exclui por completo a faixa de
+menor que os 66,7\% da etapa intermediária, mas ainda exclui por completo a faixa de
 estresse e uma das duas geometrias de 35 vértices.
 
 O \texttt{solver\_total\_seconds} preservado nos timeouts variou de 1.604,648 a
@@ -642,7 +695,7 @@ muito menos que as 70 linhas estratégia--instância que elas originam.
 
 Nas 21 execuções interrompidas foram gerados 1.264.813.495 estados, expandidos
 40.486.099 e contabilizados 470.262.735 como podados. Todas conservaram a rota
-inicial como incumbente. Diferentemente do painel anterior, portanto, houve
+inicial como incumbente. Diferentemente da etapa intermediária, portanto, houve
 poda substancial dentro da janela observada, mas ela não bastou para concluir a
 prova nem para encontrar uma folha melhor.
 
@@ -655,7 +708,7 @@ aguardam na heap, filhos cortados pelo limite antes da inserção e, ao certific
 a prova, a entrada mínima mais toda a fronteira remanescente, contada em bloco
 porque seus limites não podem melhorar a incumbente. Ele não representa chaves
 de estado únicas, não forma uma partição simples com gerados e expandidos e não é
-comparável ao contador de poda da versão anterior; os campos atuais tampouco
+comparável ao contador de poda da etapa intermediária; os campos finais tampouco
 separam essas quatro parcelas.
 
 Não se deve interpretar um número maior de estados gerados durante um timeout
@@ -669,7 +722,7 @@ longo do tempo.
 
 O limite das duas arestas consumiu 70,54\% dos 45.753,598 s acumulados de busca.
 A dominância reduziu as chamadas, mas o limite permanece o principal custo
-temporal. Em relação ao painel anterior, o total de chamadas caiu 56,12\%, o de
+temporal. Em relação à etapa intermediária, o total de chamadas caiu 56,12\%, o de
 expansões 51,02\% e o tempo acumulado de busca 48,71\%. Como há uma repetição por
 célula e os lotes ocorreram em momentos diferentes, esses percentuais descrevem
 o painel; não são estimativas inferenciais de \textit{speedup}.
@@ -678,7 +731,7 @@ O compartilhamento de prefixos não tornou a busca espacialmente limitada. Heap,
 nós e mapa de dominância ainda podem crescer exponencialmente, e o maior pico
 foi 11,380~GiB em \texttt{sub\_gil262\_35\_seed602} com
 Twice-around-the-tree, uma execução que terminou. Esse máximo supera em 5,77\%
-o do painel anterior. O pico mede o worker inteiro, mas basta para rejeitar uma
+o da etapa intermediária. O pico mede o worker inteiro, mas basta para rejeitar uma
 alegação de redução do pior caso de memória. Em execuções grandes, desalocação e
 serialização após a medição do solver também fizeram o tempo de parede do
 executor superar materialmente \texttt{solver\_total\_seconds}.
@@ -735,7 +788,7 @@ Figura~\ref{fig:complexity-regressions} mostra os dados e os modelos.
 \begin{figure}[H]
   \centering
   \resizebox{\textwidth}{!}{\input{figures/complexity-regressions.tex}}
-  \caption{Observações v5 e ajustes log--log. Círculos vazios são as 54
+  \caption{Observações da etapa final e ajustes log--log. Círculos vazios são as 54
   provas; círculos cheios, as dez medianas usadas no ajuste; e triângulos, os
   21 timeouts excluídos. No tempo, a censura é posicionada em 1.800 s e os
   rótulos indicam multiplicidade; na memória, o triângulo é o pico parcial
@@ -749,7 +802,7 @@ temporais são marcados no limite conhecido de 1.800 s, e não no
 \texttt{solver\_total\_seconds} parcial do último checkpoint; seus tempos de
 solução permanecem desconhecidos. Para memória, o pico preservado é observável,
 mas cobre somente o processamento até o retrato disponível. A fonte preservada
-é \path{experiments/results/optimized-v5/results.csv}. A figura é gerada por
+é \path{experiments/results/final/results.csv}. A figura é gerada por
 \texttt{scripts/generate\_report\_plots.py}, que valida o SHA-256 do CSV antes
 de recalcular medianas, $R^2$ e RMSE.
 
@@ -775,7 +828,7 @@ escalabilidade espacial continua crítica.
 \subsection{Impacto do warm-start na árvore de busca}
 
 A Tabela~\ref{tab:warm-start} compara qualidade, custo de inicialização e
-efeito na busca. Os gaps usam somente as 14 instâncias com referência. As duas
+efeito na busca. Os gaps usam somente as 14 instâncias com referência. As quatro
 últimas colunas são médias de razões pareadas nas dez instâncias concluídas
 pelas cinco estratégias;
 valores menores que um indicam redução em relação à inicialização trivial.
@@ -786,27 +839,32 @@ valores menores que um indicam redução em relação à inicialização trivial
   \label{tab:warm-start}
   \scriptsize
   \resizebox{\textwidth}{!}{%
-  \begin{tabular}{lrrrrrrr}
+  \begin{tabular}{lrrrrrrrrr}
     \hline
-    Estratégia & Inicialização (ms) & Gap médio (\%) & Mediana (\%) & Máximo (\%) & Ótimos iniciais & Gerados/trivial & Tempo/trivial \\
+    Estratégia & Inicialização (ms) & Gap médio (\%) & Mediana (\%) & Máximo (\%) & Ótimos iniciais & Gerados/trivial & Expandidos/trivial & Podados/trivial & Tempo/trivial \\
     \hline
-    Trivial                  & 0,048 & 212,90 & 200,73 & 405,19 & 0 & 1,000 & 1,000 \\
-    Vizinho Mais Próximo     & 0,174 & 19,44  & 21,46  & 37,61  & 0 & 1,000 & 0,943 \\
-    Fecho convexo            & 3,968 & 2,15   & 0,81   & 7,46   & 7 & 0,983 & 0,859 \\
-    Twice-around-the-tree    & 0,671 & 26,45  & 29,32  & 44,13  & 0 & 1,000 & 0,954 \\
-    Christofides             & 5,505 & 9,25   & 9,71   & 14,22  & 0 & 1,000 & 1,012 \\
+    Trivial                  & 0,048 & 212,90 & 200,73 & 405,19 & 0 & 1,000 & 1,000 & 1,000 & 1,000 \\
+    Vizinho Mais Próximo     & 0,174 & 19,44  & 21,46  & 37,61  & 0 & 1,000 & 1,000 & 1,000 & 0,943 \\
+    Fecho convexo            & 3,968 & 2,15   & 0,81   & 7,46   & 7 & 0,983 & 0,977 & 0,984 & 0,859 \\
+    Twice-around-the-tree    & 0,671 & 26,45  & 29,32  & 44,13  & 0 & 1,000 & 1,000 & 1,000 & 0,954 \\
+    Christofides             & 5,505 & 9,25   & 9,71   & 14,22  & 0 & 1,000 & 1,000 & 1,000 & 1,012 \\
     \hline
   \end{tabular}}
 \end{table}
 
 O fecho convexo foi a melhor estratégia em todas as 15 instâncias e alcançou
 sete dos 14 ótimos conhecidos já na inicialização. Nas dez geometrias pareadas,
-reduziu em média 1,74\% dos nós gerados e 2,26\% dos expandidos; a razão de tempo
-foi 0,859. Nas outras estratégias, os contadores foram idênticos aos da rota
-trivial nessas mesmas instâncias. Como há uma única medição por célula, as razões
-de tempo de 0,943 a 1,012 não sustentam uma ordenação fina de velocidade. Médias
-simples dos casos concluídos seriam ainda piores: Christofides terminou dez
-instâncias, enquanto as demais estratégias terminaram onze.
+reduziu em média 1,74\% dos nós gerados, 2,26\% dos expandidos e 1,58\% dos
+podados; a razão de tempo foi 0,859. A redução de nós podados não representa,
+por si só, menor eficiência da poda: \texttt{pruned\_nodes} mede o volume de
+estados descartados e também tende a cair quando uma incumbente melhor reduz o
+número de estados gerados. Avaliar eficiência exigiria normalizar as podas pelas
+oportunidades de descarte e distinguir seus diferentes motivos. Nas outras
+estratégias, os contadores foram idênticos aos da rota trivial nessas mesmas
+instâncias. Como há uma única medição por célula, as razões de tempo de 0,943 a
+1,012 não sustentam uma ordenação fina de velocidade. Médias simples dos casos
+concluídos seriam ainda piores: Christofides terminou dez instâncias, enquanto
+as demais estratégias terminaram onze.
 
 Nas 21 execuções censuradas, a busca podou 470.262.735 estados, mas
 \texttt{best\_route\_cost} permaneceu igual ao custo inicial; nesses casos, a
@@ -1019,6 +1077,15 @@ entre estratégia e geometria.
 
 \section{Conclusões}
 
+A evolução em três etapas permitiu separar diagnóstico e efeito das mudanças. A
+etapa inicial estabeleceu a referência e expôs o custo dominante do limite
+inferior e os primeiros picos elevados de memória. A etapa intermediária
+generalizou a avaliação para as cinco estratégias e mostrou que warm-starts
+melhores, isoladamente, não impediam o crescimento da busca: 50 das 75 células
+pareadas atingiram o prazo. A etapa final atacou esses gargalos com dominância,
+poda antes da heap e prefixos compartilhados, preservando o algoritmo exato e o
+protocolo de comparação.
+
 A avaliação separou claramente qualidade de solução e capacidade de prova. A
 inserção pelo fecho convexo foi o melhor warm-start nas 15 instâncias, entregou
 gap médio de 2,15\% e encontrou sete dos 14 ótimos de referência imediatamente. Seu
@@ -1027,7 +1094,7 @@ custo de poucos milissegundos compensa quando uma boa rota ao término do prazo
 nenhuma melhora da incumbente; nesses casos, a qualidade entregue continuou
 determinada integralmente pelo warm-start.
 
-A implementação v5 provou 54 das 75 células, contra 25 na versão anterior:
+A versão final provou 54 das 75 células, contra 25 na etapa intermediária:
 todas as 25 provas foram preservadas e 29 timeouts foram convertidos, de modo
 que dez instâncias terminaram nas cinco estratégias e uma décima primeira em
 quatro. A dominância evitou 709,9 milhões de avaliações do limite; chamadas do
@@ -1077,17 +1144,22 @@ problem.
 \newblock Technical Report 388, Graduate School of Industrial Administration,
 Carnegie Mellon University.
 
-\bibitem{lawler1985}
-Lawler, E. L., Lenstra, J. K., Rinnooy Kan, A. H. G. e Shmoys, D. B., eds.
-(1985).
-\newblock \emph{The Traveling Salesman Problem: A Guided Tour of
-Combinatorial Optimization}.
-\newblock Wiley.
-
 \bibitem{reinelt1991}
 Reinelt, G. (1991).
 \newblock TSPLIB---A traveling salesman problem library.
 \newblock \emph{ORSA Journal on Computing}, 3(4):376--384.
+
+\bibitem{vimieiro2026aula12}
+Vimieiro, R. (2026a).
+\newblock \emph{Soluções exatas para problemas difíceis (Branch-and-Bound)}.
+\newblock Material da Aula 12 de DCC207 -- Algoritmos 2, Departamento de
+Ciência da Computação, Universidade Federal de Minas Gerais.
+
+\bibitem{vimieiro2026aula13}
+Vimieiro, R. (2026b).
+\newblock \emph{Algoritmos aproximativos}.
+\newblock Material da Aula 13 de DCC207 -- Algoritmos 2, Departamento de
+Ciência da Computação, Universidade Federal de Minas Gerais.
 
 \end{thebibliography}
 

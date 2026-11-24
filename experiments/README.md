@@ -1,12 +1,35 @@
 # Executor de experimentos
 
-O painel balanceado mais recente está em
-[`results/optimized-v5/results.csv`](results/optimized-v5/results.csv): são 75
-execuções da instrumentação v5, analisadas no
-[`relatório atual`](../docs/report/main.pdf). Os documentos
+Os resultados preservam três etapas da evolução técnica e experimental:
+
+| Etapa | Diretório | Conteúdo |
+|---|---|---|
+| Inicial | [`results/initial/`](results/initial/) | Baseline trivial da implementação de referência e piloto do limite das duas arestas, ainda sob schemas anteriores. |
+| Intermediária | [`results/intermediate/`](results/intermediate/) | Executor e profiling ampliados, cinco warm-starts e identificação dos gargalos que motivaram a refatoração. |
+| Final | [`results/final/`](results/final/) | Painel balanceado após dominância de estados, poda antes da heap e compartilhamento dos prefixos de rota. |
+
+O painel final contém 75 execuções e é a base principal do
+[`relatório`](../docs/report/main.pdf). A etapa intermediária preserva 96 linhas
+acumuladas; sua comparação com a etapa final usa as mesmas 75 células,
+selecionadas por SHA-256 da instância, estratégia e repetição. A etapa inicial
+é histórica e não é agregada diretamente às regressões posteriores, pois usa
+outros schemas e não cobre o mesmo painel de estratégias.
+
+O diretório auxiliar [`results/trivial/`](results/trivial/) conserva no ambiente
+de trabalho os artefatos do primeiro lote trivial. No repositório versionado,
+seu `results.csv` é a base rastreável; uma cópia histórica desse CSV permanece
+em `results/initial/trivial/` para preservar a organização usada na evolução
+do projeto. Os documentos
 [`trivial-baseline.md`](../docs/analysis/trivial-baseline.md) e
 [`lower-bound-two-edges.md`](../docs/analysis/lower-bound-two-edges.md)
-permanecem como registros históricos das etapas anteriores.
+registram as decisões dessa fase.
+
+Os CSVs entregues preservam `run_id`, `config_id`, hashes e demais métricas
+necessárias à rastreabilidade. Quando mantidos localmente, os JSONs históricos
+de especificação, invocação e análise conservam também o `output_dir` absoluto
+registrado na execução, inclusive os nomes anteriores dos diretórios. Esses
+valores são proveniência imutável, não caminhos ativos; comandos e scripts
+atuais usam `initial`, `intermediate` e `final`.
 
 O módulo `traveling_salesman_optimization.experiment_runner` executa o
 Branch-and-Bound sequencialmente, com um processo novo para cada par
@@ -14,22 +37,46 @@ instância–repetição. As cinco estratégias registradas são `trivial`,
 `nearest_neighbor`, `convex_hull`, `twice_around_tree` e `christofides`; todas
 usam a mesma interface do solver e do executor.
 
+## Base experimental
+
+O painel científico contém 15 instâncias `EUC_2D` com 10 a 70 vértices: três
+instâncias completas da TSPLIB (`eil51`, `berlin52` e `st70`) e doze
+subinstâncias reprodutíveis derivadas das coordenadas de instâncias maiores da
+mesma biblioteca. A complementação foi adotada porque havia disponibilidade
+limitada de instâncias originais que atendessem simultaneamente à faixa
+dimensional e à função de custo requeridas.
+
+A metodologia foi descrita em uma pergunta no fórum da disciplina: derivar
+novas entradas das coordenadas da TSPLIB, recalcular os custos conforme
+`EUC_2D` e identificá-las separadamente. Em resposta publicada em 24 de
+novembro de 2026, no tópico “Instâncias dos experimentos no TP2”, o professor
+esclareceu:
+
+> “Qualquer instância com função de custo que seja uma distância pode ser usada”.
+
+O esclarecimento respalda a composição da base, mas não significa que uma
+subinstância preserve a dificuldade ou o ótimo da origem. Por isso, cada
+arquivo derivado registra instância de origem, semente e IDs selecionados em
+seu cabeçalho; os resultados registram também o SHA-256 do arquivo efetivamente
+executado.
+
 ## Comandos
 
-No Windows PowerShell, um lote completo com os padrões de uma repetição e
-1.800 segundos por execução pode ser iniciado com:
+No Windows PowerShell, o comando abaixo percorre todas as instâncias e usa os
+padrões de uma repetição, 1.800 segundos por execução e estratégia `trivial`:
 
 ```powershell
 .\scripts\run_experiments.bat data\instances `
-  --output-dir experiments\results\trivial
+  --output-dir experiments\results\example-run
 ```
 
 Uma lista explícita, três repetições e checkpoints a cada 30 segundos:
 
 ```powershell
 .\scripts\run_experiments.bat `
-  data\instances\ulysses16.tsp data\instances\gr24.tsp `
-  --output-dir experiments\results\trivial `
+  data\instances\sub_eil101_10_seed101.tsp `
+  data\instances\sub_kroA100_10_seed102.tsp `
+  --output-dir experiments\results\example-selected `
   --strategy trivial --repetitions 3 `
   --timeout-seconds 1800 --checkpoint-interval-seconds 30
 ```
@@ -38,7 +85,7 @@ No Linux ou macOS, substitua o script por:
 
 ```bash
 python scripts/tasks.py experiment data/instances \
-  --output-dir experiments/results/trivial
+  --output-dir experiments/results/example-run
 ```
 
 O mesmo comando retoma o lote: execuções `optimal` e `timeout` com o mesmo
@@ -62,8 +109,9 @@ na Aula 12. A configuração canônica registra `lower_bound: "two_edges"`; não
 opção de linha de comando para selecionar outro limite. O schema 3 removeu as
 colunas legadas da AGM. O schema 4 acrescenta impressão digital dos fontes,
 runtime e dependências, nós gerados e profiling das aproximações. Dentro desse
-schema, `instrumentation_version=5` identifica a semântica atual: dominância de
-estados, poda antes da heap e contagem de todo filho considerado como gerado.
+schema, `instrumentation_version=5` é o identificador técnico da implementação
+final: dominância de estados, poda antes da heap e contagem de todo filho
+considerado como gerado.
 Resultados dos schemas 1 a 3 continuam intactos, mas uma nova execução deve
 usar outra pasta de saída (ou um CSV previamente migrado).
 
@@ -81,6 +129,12 @@ Para uma pasta passada em `--output-dir`, são criados:
 - `runs/<run_id>.json`: registro final detalhado;
 - `routes/<run_id>.tour`: melhor ciclo viável em formato TSPLIB TOUR;
 - `logs/<run_id>.log`: saída e traceback do processo worker.
+
+Todos esses artefatos são produzidos no ambiente local. A política padrão do
+`.gitignore` versiona os CSVs, inclusive `analysis/enriched_results.csv`, mas
+ignora JSONs, logs, checkpoints, rotas e `analysis/summary.json`. Para arquivar
+também esses auxiliares fora do ambiente de execução, é necessário incluí-los
+deliberadamente no Git ou copiá-los para outro meio de preservação.
 
 JSON, TOUR e CSV usam um temporário no mesmo diretório, `fsync` e
 `os.replace`, de modo que um arquivo parcialmente escrito nunca toma o lugar
@@ -180,11 +234,11 @@ ponto de verificação, além da consulta de memória e da escrita atômica em c
 checkpoint. O custo de persistência aparece em `checkpoint_seconds`, mas, por
 ser síncrono, também aumenta busca e total do solver. O intervalo padrão de 30
 segundos mantém esse efeito pequeno em buscas longas. Processos isolados têm
-custo de startup, visível apenas em `executor_wall_seconds`. A instrumentação
-v5 preserva a fila best-first e o limite das duas arestas, mas altera a regra de
-poda e a geração efetivamente enfileirada ao acrescentar dominância e descarte
-antes da heap; por isso, comparações históricas devem observar a versão e a
-impressão digital registradas.
+custo de startup, visível apenas em `executor_wall_seconds`. A implementação
+final (`instrumentation_version=5`) preserva a fila best-first e o limite das
+duas arestas, mas altera a regra de poda e a geração efetivamente enfileirada ao
+acrescentar dominância e descarte antes da heap; por isso, comparações históricas
+devem observar a etapa e a impressão digital registradas.
 
 ## Validação curta
 

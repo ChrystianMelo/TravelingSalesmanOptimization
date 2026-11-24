@@ -1,4 +1,9 @@
-# Preparação do teste do limite inferior das duas arestas
+# Análise do piloto do limite inferior das duas arestas
+
+Este documento registra a introdução do limite inferior das duas arestas e o
+primeiro ensaio realizado com ele. Trata-se de um registro histórico da etapa
+inicial: os painéis intermediário e final, descritos na documentação principal,
+usam o mesmo limitante com instrumentação e regras de poda posteriores.
 
 ## Definição e adaptação
 
@@ -37,10 +42,13 @@ preservar a semântica já testada do projeto em uma instância degenerada de do
 vértices, a única ida e volta é tratada exatamente, pois um grafo simples com
 dois vértices não oferece duas arestas incidentes distintas.
 
-Esse é o único limite inferior mantido no solver. A busca continua best-first,
-os filhos continuam sendo gerados na ordem crescente dos índices e não houve
-mudança na inicialização, na regra de poda, nos checkpoints ou no prazo.
-`lower_bound_calls` e `lower_bound_seconds` medem suas chamadas e seu tempo.
+Esse é o único limite inferior mantido no solver atual. Na alteração avaliada
+por este piloto, a busca continuou best-first, os filhos continuaram sendo
+gerados na ordem crescente dos índices e não houve mudança simultânea na
+inicialização, na regra de poda, nos checkpoints ou no prazo. As otimizações
+posteriores de dominância e poda antes da heap pertencem à etapa final.
+`lower_bound_calls` e `lower_bound_seconds` medem as chamadas do limitante e seu
+tempo acumulado.
 
 ## Validação curta
 
@@ -50,17 +58,17 @@ com a melhor conclusão por força bruta: o limite não pode excedê-la. Há
 verificações específicas do custo exato de uma rota completa, do caso de dois
 vértices, da instrumentação e da retomada no executor.
 
-## Estado da avaliação
+## Contexto da avaliação
 
-Ainda não há medidas experimentais publicadas para este novo limite. Todos os
-valores numéricos citados abaixo foram coletados anteriormente com o LB baseado
-em AGM e servem apenas para escolher e configurar o próximo teste. O resultado
-do LB das duas arestas será acrescentado a este documento depois da nova
-execução.
+O primeiro piloto do novo limite foi executado e permanece preservado na etapa
+inicial. Ele compara uma única execução com o baseline anterior baseado em AGM,
+na mesma instância e com inicialização trivial. O ensaio serviu para verificar o
+comportamento operacional do limitante, não para estimar ganho estatístico ou
+declarar superioridade entre as formulações.
 
 ## Instância escolhida
 
-O primeiro piloto usa `sub_gil262_35_seed602`. As duas candidatas prioritárias
+O primeiro piloto usou `sub_gil262_35_seed602`. As duas candidatas prioritárias
 têm 35 vértices e ambas consumiram o prazo de 1.800 s com o LB por AGM, de modo
 que os tempos registrados e a quantidade de nós processados não demonstram
 qual seria mais barata. O critério operacional disponível foi o pico observado
@@ -73,27 +81,50 @@ mede o worker inteiro e a mudança do limite altera prioridades, podas e tamanho
 da fronteira. O critério apenas reduz o risco esperado do primeiro ensaio entre
 duas instâncias da mesma dimensão.
 
-## Comando preparado
+## Piloto preservado
 
-No Windows PowerShell, a execução isolada fica preparada como:
+O piloto foi incorporado à etapa inicial e seu CSV permanece em
+[`experiments/results/initial/lb_two_edges_pilot/results.csv`](../../experiments/results/initial/lb_two_edges_pilot/results.csv).
+O comando equivalente no layout atual é:
 
 ```powershell
 .\scripts\run_experiments.bat data\instances\sub_gil262_35_seed602.tsp `
-  --output-dir experiments\results\two_edges_only `
+  --output-dir experiments\results\initial\lb_two_edges_pilot `
   --strategy trivial `
   --repetitions 1 --timeout-seconds 1800 `
   --checkpoint-interval-seconds 30 --external-grace-seconds 10
 ```
 
-A pasta é diferente dos lotes históricos, e a configuração
-canônica registra `lower_bound: "two_edges"`. Assim, a retomada não confunde o
-novo lote com os timeouts anteriores nem sobrescreve seus CSV, JSON, logs,
-checkpoints ou rotas. O comando não foi executado durante esta alteração.
+A pasta é diferente dos painéis intermediário e final, e a configuração
+canônica registra `lower_bound: "two_edges"`. Os identificadores e metadados
+originais foram preservados mesmo após a reorganização dos diretórios.
 
-Devem ser comparados com a linha anterior: `status` (principalmente se concluiu
-dentro do prazo), `solver_total_seconds`, `expanded_nodes`,
-`lower_bound_seconds` e `best_route_cost`. `lower_bound_calls` e as métricas de
-memória ajudam a interpretar o perfil. Se ambos terminarem em timeout, a
-quantidade de nós processados isoladamente não define um vencedor: limites com
-custos por chamada e ordens de expansão diferentes podem produzir vazões muito
-diferentes sem provar a solução.
+## Resultado do piloto
+
+A linha de referência está em
+[`experiments/results/initial/trivial/results.csv`](../../experiments/results/initial/trivial/results.csv).
+Os dois ensaios usaram a mesma instância, uma repetição, rota inicial trivial e
+prazo de 1.800 segundos:
+
+| Métrica | LB baseado em AGM | LB das duas arestas |
+|---|---:|---:|
+| Status | `timeout` | `timeout` |
+| Encerramento | cooperativo | externo por `terminate` |
+| Tempo interno preservado (s) | 1.800,000 | 1.777,115 |
+| Tempo de parede do executor (s) | 1.809,483 | 1.810,030 |
+| Estados expandidos | 468.910 | 903.140 |
+| Estados podados | 0 | 0 |
+| Chamadas do limite | 11.604.258 | 20.626.874 |
+| Tempo acumulado no limite (s) | 1.723,314 | 1.482,369 |
+| Melhor custo preservado | 3.015 | 3.015 |
+| Pico residente (GB decimais) | 4,18 | 7,32 |
+
+O limite das duas arestas permitiu processar mais estados e acumulou menos tempo
+dentro da rotina de limite durante a janela observada, mas isso não produziu
+uma prova nem melhorou a incumbente. Seu pico residente foi maior, e o
+encerramento externo fez o tempo interno refletir o último checkpoint válido,
+não todo o intervalo de parede. Como ambos terminaram em `timeout`, a quantidade
+de nós processados isoladamente não define um vencedor: limites com custos por
+chamada e ordens de expansão diferentes podem produzir vazões distintas sem
+provar a solução. A evidência mais ampla sobre o limitante vem dos painéis
+intermediário e final, e não deste ensaio único.

@@ -21,7 +21,8 @@ referências oficiais do projeto são:
 - [executor de experimentos](experiments/README.md), para protocolo, schema,
   métricas, timeout e artefatos;
 - [`docs/analysis/`](docs/analysis/), para registros técnicos intermediários;
-- [`docs/prompts/`](docs/prompts/), para a rastreabilidade do uso de IA.
+- [histórico consolidado de uso de IA](docs/prompts/historico.md),
+  para decisões, correções, contribuições assistidas e resultados.
 
 O [PDF do artigo](docs/report/main.pdf) apresenta a análise e as conclusões do
 painel coletado. Em caso de divergência operacional, prevalecem o código, os
@@ -85,16 +86,31 @@ a incumbente e os contadores coletados até a interrupção. A avaliação inclu
   relacione as características das instâncias ao desempenho dos algoritmos e à
   qualidade das soluções.
 
-### Resultados atuais
+### Evolução dos resultados
 
-O painel balanceado da instrumentação v5 contém 75 execuções: 15 instâncias,
-cinco estratégias, uma repetição e limite de 1.800 segundos. Os dados estão em
-[`results.csv`](experiments/results/optimized-v5/results.csv), e a tabela com
-features, referências e gaps está em
-[`enriched_results.csv`](experiments/results/optimized-v5/analysis/enriched_results.csv).
+Os resultados preservam três etapas da evolução do trabalho:
+
+| Etapa | Diretório | Papel na evolução |
+|---|---|---|
+| Inicial | [`initial`](experiments/results/initial/) | Primeiros experimentos com a implementação de referência, incluindo o baseline trivial e o piloto do limite das duas arestas. |
+| Intermediária | [`intermediate`](experiments/results/intermediate/) | Cinco warm-starts, instrumentação ampliada e evidência dos gargalos de tempo, fronteira e memória. |
+| Final | [`final`](experiments/results/final/) | Branch-and-Bound após dominância de estados, poda antes da heap e compartilhamento dos prefixos de rota. |
+
+A etapa inicial não forma um painel diretamente comparável às seguintes,
+porque usa schemas anteriores e se concentra no baseline trivial. O CSV da
+etapa intermediária acumula 96 linhas; a comparação histórica seleciona as 75
+células correspondentes ao mesmo painel da etapa final por SHA-256 da
+instância, estratégia e repetição. Os identificadores técnicos dos CSVs foram
+preservados para garantir a rastreabilidade.
+
+O painel balanceado da versão final contém 75 execuções: 15 instâncias, cinco
+estratégias, uma repetição e limite de 1.800 segundos. Os dados estão em
+[`results.csv`](experiments/results/final/results.csv), e a tabela com features,
+referências e gaps está em
+[`enriched_results.csv`](experiments/results/final/analysis/enriched_results.csv).
 
 - 54 execuções (72%) provaram a otimalidade e 21 atingiram timeout;
-- a versão anterior provava 25 das mesmas 75 células;
+- a etapa intermediária provava 25 das mesmas 75 células;
 - dez instâncias foram resolvidas pelas cinco estratégias e uma décima primeira
   por quatro delas;
 - o fecho convexo produziu a melhor rota inicial nas 15 instâncias e gap médio
@@ -115,6 +131,13 @@ Doze entradas são subamostras reprodutíveis de instâncias maiores e três sã
 instâncias completas. A instância sintética `example_crossing`, com quatro
 vértices, é usada somente em testes e não integra o painel científico.
 
+Essa composição foi respaldada por esclarecimento do professor no fórum da
+disciplina, em 24 de novembro de 2026, de que qualquer instância cuja função de
+custo seja uma distância poderia ser usada. A origem, a semente, os IDs
+selecionados e o hash de cada entrada derivada preservam a rastreabilidade; a
+metodologia completa está descrita no
+[protocolo experimental](experiments/README.md#base-experimental).
+
 As instâncias estão disponíveis no
 [repositório da TSPLIB](https://comopt.ifi.uni-heidelberg.de/software/TSPLIB95/)
 e no [índice de instâncias TSP](https://comopt.ifi.uni-heidelberg.de/software/TSPLIB95/tsp/tspindex.html).
@@ -130,7 +153,8 @@ e no [índice de instâncias TSP](https://comopt.ifi.uni-heidelberg.de/software/
 
 Este trabalho foi desenvolvido individualmente por Chrystian Melo
 (`chrystian1@ufmg.br`). O uso de ferramentas de IA generativa, permitido pelo
-enunciado, foi documentado em [`docs/prompts/`](docs/prompts/); as decisões e
+enunciado, foi documentado no
+[`histórico consolidado`](docs/prompts/historico.md); as decisões e
 saídas foram auditadas por testes, revisão do código e análise experimental.
 
 ## Instalação
@@ -186,18 +210,18 @@ mesma invocação:
 
 ```powershell
 .\scripts\run_experiments.bat data\instances `
-  --output-dir experiments\results\current `
+  --output-dir experiments\results\reproduction `
   --all-strategies --repetitions 3
 ```
 
 Depois da coleta, as características geométricas, gaps e modelos estatísticos
 podem ser gerados sem reexecutar os algoritmos. O comando abaixo reproduz a
-análise do painel otimizado usado no relatório:
+análise do painel final usado no relatório:
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\tasks.py analysis `
-  experiments\results\optimized-v5\results.csv `
-  --output-dir experiments\results\optimized-v5\analysis `
+  experiments\results\final\results.csv `
+  --output-dir experiments\results\final\analysis `
   --known-optima-json experiments\known_optima.json
 ```
 
