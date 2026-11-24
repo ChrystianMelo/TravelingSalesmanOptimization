@@ -11,44 +11,46 @@ digraph calls {
     fontsize=10;
     n0 [label="_cheapest_allowed_edges_sum()"];
     n1 [label="_incident_vertices_by_cost()"];
-    n2 [label="_two_edges_lower_bound()"];
-    n3 [label="solve_branch_and_bound()"];
+    n2 [label="_materialize_route()"];
+    n3 [label="_two_edges_lower_bound()"];
+    n4 [label="solve_branch_and_bound()"];
   }
   subgraph cluster_main {
     label="main.py";
     color="#cbd5e1";
     fontname="Helvetica";
     fontsize=10;
-    n4 [label="main()", fillcolor="#dbeafe", color="#2563eb", penwidth=2];
+    n5 [label="main()", fillcolor="#dbeafe", color="#2563eb", penwidth=2];
   }
   subgraph cluster_phase_profiling {
     label="phase_profiling.py";
     color="#cbd5e1";
     fontname="Helvetica";
     fontsize=10;
-    n5 [label="ApproximationProfile.value()"];
-    n6 [label="collect_approximation_profile()"];
+    n6 [label="ApproximationProfile.value()"];
+    n7 [label="collect_approximation_profile()"];
   }
   subgraph cluster_tsplib {
     label="tsplib.py";
     color="#cbd5e1";
     fontname="Helvetica";
     fontsize=10;
-    n7 [label="TSPInstance.route_cost()"];
-    n8 [label="_build_distance_matrix()"];
-    n9 [label="_parse_header()"];
-    n10 [label="calculate_route_cost()"];
-    n11 [label="read_tsplib()"];
+    n8 [label="TSPInstance.route_cost()"];
+    n9 [label="_build_distance_matrix()"];
+    n10 [label="_parse_header()"];
+    n11 [label="calculate_route_cost()"];
+    n12 [label="read_tsplib()"];
   }
-  n2 -> n0;
-  n3 -> n1;
-  n3 -> n2;
-  n3 -> n5;
-  n3 -> n6;
-  n3 -> n7;
+  n3 -> n0;
+  n4 -> n1;
+  n4 -> n2;
   n4 -> n3;
-  n4 -> n11;
-  n7 -> n10;
-  n11 -> n8;
-  n11 -> n9;
+  n4 -> n6;
+  n4 -> n7;
+  n4 -> n8;
+  n5 -> n4;
+  n5 -> n12;
+  n8 -> n11;
+  n12 -> n9;
+  n12 -> n10;
 }

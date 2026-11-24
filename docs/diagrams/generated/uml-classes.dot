@@ -5,4 +5,5 @@ charset="utf-8"
 "traveling_salesman_optimization.initial_solutions.InitialRouteStrategy" [color="black", fontcolor="black", label=<{InitialRouteStrategy|<br ALIGN="LEFT"/>|}>, shape="record", style="solid"];
 "traveling_salesman_optimization.tsplib.TSPInstance" [color="black", fontcolor="black", label=<{TSPInstance|coordinates : tuple[tuple[float, float], ...]<br ALIGN="LEFT"/>dimension : int<br ALIGN="LEFT"/>distances : tuple<br ALIGN="LEFT"/>name : str<br ALIGN="LEFT"/>vertex_ids : tuple[int, ...]<br ALIGN="LEFT"/>|route_cost(route: Sequence[int]): int<br ALIGN="LEFT"/>}>, shape="record", style="solid"];
 "traveling_salesman_optimization.branch_and_bound._DeadlineExceeded" [color="black", fontcolor="red", label=<{_DeadlineExceeded|<br ALIGN="LEFT"/>|}>, shape="record", style="solid"];
+"traveling_salesman_optimization.branch_and_bound._RouteNode" [color="black", fontcolor="black", label=<{_RouteNode|depth : int<br ALIGN="LEFT"/>parent : _RouteNode \| None<br ALIGN="LEFT"/>vertex : int<br ALIGN="LEFT"/>|}>, shape="record", style="solid"];
 }

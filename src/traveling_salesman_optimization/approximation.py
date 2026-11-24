@@ -140,6 +140,19 @@ def _eulerian_circuit(dimension: int, edges: tuple[Edge, ...]) -> tuple[int, ...
 
     IDs próprios de aresta distinguem arestas paralelas da AGM e do matching.
     A lista retornada repete o vértice zero no fim quando há alguma aresta.
+
+    Args:
+        dimension: Número de vértices, identificados de zero a
+            ``dimension - 1``.
+        edges: Arestas do multigrafo; ocorrências repetidas representam
+            arestas paralelas distintas.
+
+    Returns:
+        Sequência do circuito iniciado em zero; para um grafo sem arestas,
+        retorna apenas zero, ou a tupla vazia quando a dimensão é zero.
+
+    Raises:
+        RuntimeError: Se alguma aresta não pertencer ao componente de zero.
     """
 
     if dimension == 0:

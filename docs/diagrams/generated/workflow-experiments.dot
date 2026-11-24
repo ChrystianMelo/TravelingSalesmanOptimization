@@ -1,0 +1,20 @@
+// Fluxo conceitual curado; gerado por scripts/generate_diagrams.py.
+digraph workflow {
+  graph [rankdir=TB, bgcolor="transparent", pad=0.15, nodesep=0.35, ranksep=0.40];
+  node [shape=box, style="rounded,filled", fillcolor="#f8fafc",
+        color="#64748b", fontname="Helvetica", fontsize=9, margin="0.10,0.07"];
+  edge [color="#64748b", arrowsize=0.7];
+  instances [label="Instâncias\n.tsp", fillcolor="#dbeafe", color="#2563eb"];
+  runner [label="Executor do lote"];
+  worker [label="Worker isolado\nwarm-start + Branch-and-Bound"];
+  save [label="Salvar resultado"];
+  artifacts [label="Rota, checkpoint,\nJSON e log"];
+  csv [label="results.csv", shape=cylinder, fillcolor="#ecfdf5", color="#059669"];
+  analysis [label="Features, gaps\ne modelos"];
+  enriched [label="CSV enriquecido\n+ resumo", shape=cylinder,
+            fillcolor="#ecfdf5", color="#059669"];
+  instances -> runner -> worker -> save;
+  save -> artifacts;
+  save -> csv;
+  csv -> analysis -> enriched;
+}

@@ -1,0 +1,18 @@
+// Gerado por scripts/generate_diagrams.py a partir da saída do Code2flow.
+digraph calls {
+  graph [rankdir=LR, bgcolor="transparent", pad=0.15, nodesep=0.25, ranksep=0.5];
+  node [shape=box, style="rounded,filled", fillcolor="#f8fafc",
+        color="#64748b", fontname="Helvetica", fontsize=9, margin="0.10,0.06"];
+  edge [color="#64748b", arrowsize=0.7];
+  subgraph cluster_initial_solutions {
+    label="initial_solutions.py";
+    color="#cbd5e1";
+    fontname="Helvetica";
+    fontsize=10;
+    n0 [label="_convex_hull_vertices()"];
+    n1 [label="_cross_product()"];
+    n2 [label="convex_hull_insertion_initial_route()", fillcolor="#dbeafe", color="#2563eb", penwidth=2];
+  }
+  n0 -> n1;
+  n2 -> n0;
+}

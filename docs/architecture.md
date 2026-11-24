@@ -14,6 +14,26 @@ ficam em `approximation`. A execução em lote separa o orquestrador
 `experiment_runner` do processo isolado `experiment_worker`, que chama o mesmo
 solver usado pela CLI.
 
+### Fluxo geral dos experimentos
+
+Este esquema mostra somente o caminho principal: descobrir as instâncias,
+executar cada configuração isoladamente, salvar os artefatos e analisar o CSV
+consolidado. Detalhes internos do solver ficam nos fluxos posteriores.
+
+<!-- BEGIN GENERATED: workflow-experiments -->
+```mermaid
+%% Fluxo conceitual curado; gerado por scripts/generate_diagrams.py.
+flowchart TD
+  instances["Instâncias<br/>.tsp"] --> runner["Executor do lote"]
+  runner --> worker["Worker isolado<br/>warm-start + Branch-and-Bound"]
+  worker --> save["Salvar resultado"]
+  save --> artifacts["Rota, checkpoint,<br/>JSON e log"]
+  save --> csv[("results.csv")]
+  csv --> analysis["Features, gaps<br/>e modelos"]
+  analysis --> enriched[("CSV enriquecido<br/>+ resumo")]
+```
+<!-- END GENERATED: workflow-experiments -->
+
 ### Dependências entre módulos (Pyreverse)
 
 As setas indicam importações entre módulos do pacote.
@@ -126,6 +146,11 @@ classDiagram
   }
   class _DeadlineExceeded {
   }
+  class _RouteNode {
+    depth : int
+    parent : _RouteNode | None
+    vertex : int
+  }
 ```
 <!-- END GENERATED: uml-classes -->
 
@@ -145,39 +170,41 @@ flowchart LR
     direction TB
     n0["_cheapest_allowed_edges_sum()"]
     n1["_incident_vertices_by_cost()"]
-    n2["_two_edges_lower_bound()"]
-    n3["solve_branch_and_bound()"]
+    n2["_materialize_route()"]
+    n3["_two_edges_lower_bound()"]
+    n4["solve_branch_and_bound()"]
   end
   subgraph module_main["main.py"]
     direction TB
-    n4["main()"]
+    n5["main()"]
   end
   subgraph module_phase_profiling["phase_profiling.py"]
     direction TB
-    n5["ApproximationProfile.value()"]
-    n6["collect_approximation_profile()"]
+    n6["ApproximationProfile.value()"]
+    n7["collect_approximation_profile()"]
   end
   subgraph module_tsplib["tsplib.py"]
     direction TB
-    n7["TSPInstance.route_cost()"]
-    n8["_build_distance_matrix()"]
-    n9["_parse_header()"]
-    n10["calculate_route_cost()"]
-    n11["read_tsplib()"]
+    n8["TSPInstance.route_cost()"]
+    n9["_build_distance_matrix()"]
+    n10["_parse_header()"]
+    n11["calculate_route_cost()"]
+    n12["read_tsplib()"]
   end
-  n2 --> n0
-  n3 --> n1
-  n3 --> n2
-  n3 --> n5
-  n3 --> n6
-  n3 --> n7
+  n3 --> n0
+  n4 --> n1
+  n4 --> n2
   n4 --> n3
-  n4 --> n11
-  n7 --> n10
-  n11 --> n8
-  n11 --> n9
+  n4 --> n6
+  n4 --> n7
+  n4 --> n8
+  n5 --> n4
+  n5 --> n12
+  n8 --> n11
+  n12 --> n9
+  n12 --> n10
   classDef entry fill:#dbeafe,stroke:#2563eb,stroke-width:2px
-  class n4 entry
+  class n5 entry
 ```
 <!-- END GENERATED: calls-cli -->
 
@@ -191,38 +218,112 @@ flowchart LR
     direction TB
     n0["_cheapest_allowed_edges_sum()"]
     n1["_incident_vertices_by_cost()"]
-    n2["_two_edges_lower_bound()"]
-    n3["solve_branch_and_bound()"]
+    n2["_materialize_route()"]
+    n3["_two_edges_lower_bound()"]
+    n4["solve_branch_and_bound()"]
   end
   subgraph module_phase_profiling["phase_profiling.py"]
     direction TB
-    n4["ApproximationProfile.value()"]
-    n5["collect_approximation_profile()"]
+    n5["ApproximationProfile.value()"]
+    n6["collect_approximation_profile()"]
   end
   subgraph module_tsplib["tsplib.py"]
     direction TB
-    n6["TSPInstance.route_cost()"]
-    n7["calculate_route_cost()"]
+    n7["TSPInstance.route_cost()"]
+    n8["calculate_route_cost()"]
   end
-  n2 --> n0
-  n3 --> n1
-  n3 --> n2
-  n3 --> n4
-  n3 --> n5
-  n3 --> n6
-  n6 --> n7
+  n3 --> n0
+  n4 --> n1
+  n4 --> n2
+  n4 --> n3
+  n4 --> n5
+  n4 --> n6
+  n4 --> n7
+  n7 --> n8
   classDef entry fill:#dbeafe,stroke:#2563eb,stroke-width:2px
-  class n3 entry
+  class n4 entry
 ```
 <!-- END GENERATED: calls-branch-and-bound -->
 
-### Estratégias iniciais e aproximações
+### Chamadas da estratégia trivial
 
-Este diagrama deixa explícita a reutilização da AGM, do circuito euleriano e
-do *shortcutting* pelas aproximações, além do uso do fecho convexo pela
-inserção gulosa. Estratégias autocontidas aparecem como nós sem chamadas.
+A rota trivial é autocontida; por isso, seu grafo possui apenas a função de
+entrada.
 
-<!-- BEGIN GENERATED: calls-initial-strategies -->
+<!-- BEGIN GENERATED: calls-strategy-trivial -->
+```mermaid
+%% Gerado por scripts/generate_diagrams.py a partir da saída do Code2flow.
+flowchart LR
+  subgraph module_initial_solutions["initial_solutions.py"]
+    direction TB
+    n0["trivial_initial_route()"]
+  end
+  classDef entry fill:#dbeafe,stroke:#2563eb,stroke-width:2px
+  class n0 entry
+```
+<!-- END GENERATED: calls-strategy-trivial -->
+
+### Chamadas do Vizinho Mais Próximo
+
+O Vizinho Mais Próximo também é autocontido. Operações de coleção e acesso à
+matriz não aparecem como funções independentes no Code2flow.
+
+<!-- BEGIN GENERATED: calls-strategy-nearest-neighbor -->
+```mermaid
+%% Gerado por scripts/generate_diagrams.py a partir da saída do Code2flow.
+flowchart LR
+  subgraph module_initial_solutions["initial_solutions.py"]
+    direction TB
+    n0["nearest_neighbor_initial_route()"]
+  end
+  classDef entry fill:#dbeafe,stroke:#2563eb,stroke-width:2px
+  class n0 entry
+```
+<!-- END GENERATED: calls-strategy-nearest-neighbor -->
+
+### Chamadas da inserção pelo fecho convexo
+
+<!-- BEGIN GENERATED: calls-strategy-convex-hull -->
+```mermaid
+%% Gerado por scripts/generate_diagrams.py a partir da saída do Code2flow.
+flowchart LR
+  subgraph module_initial_solutions["initial_solutions.py"]
+    direction TB
+    n0["_convex_hull_vertices()"]
+    n1["_cross_product()"]
+    n2["convex_hull_insertion_initial_route()"]
+  end
+  n0 --> n1
+  n2 --> n0
+  classDef entry fill:#dbeafe,stroke:#2563eb,stroke-width:2px
+  class n2 entry
+```
+<!-- END GENERATED: calls-strategy-convex-hull -->
+
+### Chamadas de Twice-around-the-tree
+
+<!-- BEGIN GENERATED: calls-strategy-twice-around-tree -->
+```mermaid
+%% Gerado por scripts/generate_diagrams.py a partir da saída do Code2flow.
+flowchart LR
+  subgraph module_approximation["approximation.py"]
+    direction TB
+    n0["_eulerian_circuit()"]
+    n1["_eulerian_to_hamiltonian()"]
+    n2["_minimum_spanning_tree_edges()"]
+    n3["twice_around_tree_route()"]
+  end
+  n3 --> n0
+  n3 --> n1
+  n3 --> n2
+  classDef entry fill:#dbeafe,stroke:#2563eb,stroke-width:2px
+  class n3 entry
+```
+<!-- END GENERATED: calls-strategy-twice-around-tree -->
+
+### Chamadas de Christofides
+
+<!-- BEGIN GENERATED: calls-strategy-christofides -->
 ```mermaid
 %% Gerado por scripts/generate_diagrams.py a partir da saída do Code2flow.
 flowchart LR
@@ -233,29 +334,15 @@ flowchart LR
     n2["_minimum_spanning_tree_edges()"]
     n3["_minimum_weight_perfect_matching()"]
     n4["christofides_route()"]
-    n5["twice_around_tree_route()"]
-  end
-  subgraph module_initial_solutions["initial_solutions.py"]
-    direction TB
-    n6["_convex_hull_vertices()"]
-    n7["_cross_product()"]
-    n8["convex_hull_insertion_initial_route()"]
-    n9["nearest_neighbor_initial_route()"]
-    n10["trivial_initial_route()"]
   end
   n4 --> n0
   n4 --> n1
   n4 --> n2
   n4 --> n3
-  n5 --> n0
-  n5 --> n1
-  n5 --> n2
-  n6 --> n7
-  n8 --> n6
   classDef entry fill:#dbeafe,stroke:#2563eb,stroke-width:2px
-  class n4,n5,n8,n9,n10 entry
+  class n4 entry
 ```
-<!-- END GENERATED: calls-initial-strategies -->
+<!-- END GENERATED: calls-strategy-christofides -->
 
 ## Fluxos principais
 
@@ -277,21 +364,34 @@ flowchart TD
   empty -- Não --> deadline{Prazo expirou?}
   deadline -- Sim --> timeout([Retornar incumbente com timeout])
   deadline -- Não --> pop[Remover estado de menor limite]
-  pop --> prune{Limite >= incumbente?}
-  prune -- Sim --> count_pruned[Contabilizar poda]
+  pop --> stale{Estado foi dominado?}
+  stale -- Sim --> count_pruned[Contabilizar estado podado]
+  stale -- Não --> prune{Limite >= incumbente?}
+  prune -- Sim --> count_frontier[Contabilizar estado e fronteira restante]
+  count_frontier --> optimal
   count_pruned --> queue
   prune -- Não --> complete{Rota completa?}
   complete -- Sim --> improve[Atualizar incumbente]
   improve --> queue
   complete -- Não --> expand[Gerar filhos não visitados]
-  expand --> bounds[Calcular limites e inserir filhos]
-  bounds --> queue
+  expand --> dominance{Custo melhora o estado equivalente?}
+  dominance -- Não --> count_child[Contabilizar filho podado]
+  dominance -- Sim --> bounds[Calcular limite inferior]
+  bounds --> child_prune{Limite >= incumbente?}
+  child_prune -- Sim --> count_child
+  count_child --> queue
+  child_prune -- Não --> queue
 ```
 
 O limite inferior soma as duas arestas incidentes mais baratas ainda
 permitidas em cada vértice, respeitando a rota parcial, e divide a soma por
-dois. A fila implementa exploração *best-first*. Checkpoints são disparados em
-pontos cooperativos do laço sem alterar a ordem da busca.
+dois. A fila implementa exploração *best-first*. Estados equivalentes mantêm
+somente o menor custo parcial, e seus prefixos compartilham nós ligados ao pai;
+a rota completa é materializada apenas quando se torna incumbente. Checkpoints
+são disparados em pontos cooperativos do laço sem alterar a ordem da busca.
+Como a heap remove primeiro o menor limite, quando esse valor já alcança a
+incumbente toda a fronteira restante pode ser contabilizada como podada e a
+prova termina imediatamente.
 
 ### Estratégias de incumbente inicial
 
@@ -357,6 +457,7 @@ dos marcadores podem ser ajustados quando uma mudança alterar as etapas do
 algoritmo.
 
 Code2flow e Pyreverse fazem análise estática: chamadas dinâmicas por meio do
-registro `INITIAL_ROUTE_STRATEGIES` não são inferidas como arestas. Por isso, o
-registro é explicado no texto e as cinco funções de entrada são incluídas
-explicitamente na geração.
+registro `INITIAL_ROUTE_STRATEGIES` não são inferidas como arestas. Por isso,
+cada estratégia possui uma lista explícita de funções no gerador, inclusive as
+duas entradas autocontidas. O fluxo geral dos experimentos é conceitual e não é
+atribuído ao Code2flow.

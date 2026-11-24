@@ -45,10 +45,10 @@ os casos degenerados estão documentados em
 ## Arquitetura e diagramas
 
 A documentação de [arquitetura e fluxos dos algoritmos](docs/architecture.md)
-reúne diagramas de chamadas gerados com Code2flow, UML de classes e módulos
-gerado com Pyreverse e fluxos explicativos do Branch-and-Bound e das cinco
-estratégias de inicialização. Ela também descreve como regenerar os artefatos
-após alterações em `src/`.
+reúne um fluxo geral dos experimentos, um grafo de chamadas Code2flow separado
+para cada estratégia, UML de classes e módulos gerado com Pyreverse e o fluxo
+do Branch-and-Bound. Ela também descreve como regenerar os artefatos após
+alterações em `src/`.
 
 ## Avaliação experimental
 

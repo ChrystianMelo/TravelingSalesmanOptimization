@@ -64,7 +64,20 @@ def _cross_product(
     first: tuple[float, float],
     second: tuple[float, float],
 ) -> float:
-    """Retorna o produto vetorial de ``origin->first`` e ``origin->second``."""
+    """Calcula a orientação do giro formado por três pontos.
+
+    O valor é o produto vetorial de ``origin->first`` e ``origin->second``.
+    Resultado positivo indica giro à esquerda, negativo indica giro à direita
+    e zero indica colinearidade; esse sinal orienta a cadeia monotônica.
+
+    Args:
+        origin: Ponto comum aos dois vetores.
+        first: Extremidade do primeiro vetor.
+        second: Extremidade do segundo vetor.
+
+    Returns:
+        Produto vetorial escalar com sinal.
+    """
 
     return (first[0] - origin[0]) * (second[1] - origin[1]) - (first[1] - origin[1]) * (
         second[0] - origin[0]
@@ -78,6 +91,13 @@ def _convex_hull_vertices(instance: TSPInstance) -> tuple[int, ...]:
     duplicadas ficam fora da semente e são posteriormente inseridos pela
     heurística. Isso mantém um ciclo simples e garante que todos os índices
     originais ainda apareçam exatamente uma vez na rota final.
+
+    Args:
+        instance: Instância cujas coordenadas definem o fecho.
+
+    Returns:
+        Índices dos vértices extremos em ordem anti-horária, sem repetir o
+        primeiro no fim.
     """
 
     ordered_vertices = sorted(

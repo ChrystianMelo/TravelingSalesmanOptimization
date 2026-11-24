@@ -1,0 +1,20 @@
+// Gerado por scripts/generate_diagrams.py a partir da saída do Code2flow.
+digraph calls {
+  graph [rankdir=LR, bgcolor="transparent", pad=0.15, nodesep=0.25, ranksep=0.5];
+  node [shape=box, style="rounded,filled", fillcolor="#f8fafc",
+        color="#64748b", fontname="Helvetica", fontsize=9, margin="0.10,0.06"];
+  edge [color="#64748b", arrowsize=0.7];
+  subgraph cluster_approximation {
+    label="approximation.py";
+    color="#cbd5e1";
+    fontname="Helvetica";
+    fontsize=10;
+    n0 [label="_eulerian_circuit()"];
+    n1 [label="_eulerian_to_hamiltonian()"];
+    n2 [label="_minimum_spanning_tree_edges()"];
+    n3 [label="twice_around_tree_route()", fillcolor="#dbeafe", color="#2563eb", penwidth=2];
+  }
+  n3 -> n0;
+  n3 -> n1;
+  n3 -> n2;
+}

@@ -11,30 +11,32 @@ digraph calls {
     fontsize=10;
     n0 [label="_cheapest_allowed_edges_sum()"];
     n1 [label="_incident_vertices_by_cost()"];
-    n2 [label="_two_edges_lower_bound()"];
-    n3 [label="solve_branch_and_bound()", fillcolor="#dbeafe", color="#2563eb", penwidth=2];
+    n2 [label="_materialize_route()"];
+    n3 [label="_two_edges_lower_bound()"];
+    n4 [label="solve_branch_and_bound()", fillcolor="#dbeafe", color="#2563eb", penwidth=2];
   }
   subgraph cluster_phase_profiling {
     label="phase_profiling.py";
     color="#cbd5e1";
     fontname="Helvetica";
     fontsize=10;
-    n4 [label="ApproximationProfile.value()"];
-    n5 [label="collect_approximation_profile()"];
+    n5 [label="ApproximationProfile.value()"];
+    n6 [label="collect_approximation_profile()"];
   }
   subgraph cluster_tsplib {
     label="tsplib.py";
     color="#cbd5e1";
     fontname="Helvetica";
     fontsize=10;
-    n6 [label="TSPInstance.route_cost()"];
-    n7 [label="calculate_route_cost()"];
+    n7 [label="TSPInstance.route_cost()"];
+    n8 [label="calculate_route_cost()"];
   }
-  n2 -> n0;
-  n3 -> n1;
-  n3 -> n2;
-  n3 -> n4;
-  n3 -> n5;
-  n3 -> n6;
-  n6 -> n7;
+  n3 -> n0;
+  n4 -> n1;
+  n4 -> n2;
+  n4 -> n3;
+  n4 -> n5;
+  n4 -> n6;
+  n4 -> n7;
+  n7 -> n8;
 }

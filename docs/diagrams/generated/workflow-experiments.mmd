@@ -1,0 +1,9 @@
+%% Fluxo conceitual curado; gerado por scripts/generate_diagrams.py.
+flowchart TD
+  instances["Instâncias<br/>.tsp"] --> runner["Executor do lote"]
+  runner --> worker["Worker isolado<br/>warm-start + Branch-and-Bound"]
+  worker --> save["Salvar resultado"]
+  save --> artifacts["Rota, checkpoint,<br/>JSON e log"]
+  save --> csv[("results.csv")]
+  csv --> analysis["Features, gaps<br/>e modelos"]
+  analysis --> enriched[("CSV enriquecido<br/>+ resumo")]

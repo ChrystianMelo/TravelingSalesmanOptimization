@@ -24,35 +24,56 @@ CODE2FLOW_DIAGRAMS = {
     "calls-branch-and-bound": (("solve_branch_and_bound",), 3),
 }
 
-STRATEGY_ENTRIES = (
-    "trivial_initial_route",
-    "nearest_neighbor_initial_route",
-    "convex_hull_insertion_initial_route",
-    "twice_around_tree_route",
-    "christofides_route",
-)
-
-STRATEGY_FUNCTIONS = (
-    *STRATEGY_ENTRIES,
-    "_convex_hull_vertices",
-    "_cross_product",
-    "_minimum_spanning_tree_edges",
-    "_minimum_weight_perfect_matching",
-    "_eulerian_circuit",
-    "_eulerian_to_hamiltonian",
-)
+STRATEGY_DIAGRAMS = {
+    "calls-strategy-trivial": (
+        "trivial_initial_route",
+        ("trivial_initial_route",),
+    ),
+    "calls-strategy-nearest-neighbor": (
+        "nearest_neighbor_initial_route",
+        ("nearest_neighbor_initial_route",),
+    ),
+    "calls-strategy-convex-hull": (
+        "convex_hull_insertion_initial_route",
+        (
+            "convex_hull_insertion_initial_route",
+            "_convex_hull_vertices",
+            "_cross_product",
+        ),
+    ),
+    "calls-strategy-twice-around-tree": (
+        "twice_around_tree_route",
+        (
+            "twice_around_tree_route",
+            "_minimum_spanning_tree_edges",
+            "_eulerian_circuit",
+            "_eulerian_to_hamiltonian",
+        ),
+    ),
+    "calls-strategy-christofides": (
+        "christofides_route",
+        (
+            "christofides_route",
+            "_minimum_spanning_tree_edges",
+            "_minimum_weight_perfect_matching",
+            "_eulerian_circuit",
+            "_eulerian_to_hamiltonian",
+        ),
+    ),
+}
 
 EMBEDDED_DIAGRAMS = (
+    "workflow-experiments",
     "calls-cli",
     "calls-branch-and-bound",
-    "calls-initial-strategies",
+    *STRATEGY_DIAGRAMS,
     "uml-classes",
     "uml-modules",
 )
 
 REPORT_CALL_DIAGRAMS = {
     "calls-branch-and-bound",
-    "calls-initial-strategies",
+    *STRATEGY_DIAGRAMS,
 }
 
 
@@ -95,12 +116,19 @@ def _read_code2flow_graph(path: Path) -> tuple[set[str], set[tuple[str, str]]]:
 
 
 def _call_graph_mermaid(
-    nodes: Iterable[str], edges: Iterable[tuple[str, str]], entries: Iterable[str]
+    nodes: Iterable[str],
+    edges: Iterable[tuple[str, str]],
+    entries: Iterable[str],
 ) -> str:
     """Converte a saída JSON do Code2flow em Mermaid compacto e estável."""
 
     sorted_nodes = sorted(set(nodes))
     identifiers = {name: f"n{position}" for position, name in enumerate(sorted_nodes)}
+    entry_names = {
+        name
+        for name in sorted_nodes
+        if any(name == entry or name.endswith(f"::{entry}") for entry in entries)
+    }
     modules: dict[str, list[str]] = {}
     for name in sorted_nodes:
         module, _, function = name.partition("::")
@@ -122,11 +150,6 @@ def _call_graph_mermaid(
     for source, target in sorted(set(edges)):
         lines.append(f"  {identifiers[source]} --> {identifiers[target]}")
 
-    entry_names = {
-        name
-        for name in sorted_nodes
-        if any(name == entry or name.endswith(f"::{entry}") for entry in entries)
-    }
     if entry_names:
         lines.append("  classDef entry fill:#dbeafe,stroke:#2563eb,stroke-width:2px")
         lines.append(
@@ -136,7 +159,9 @@ def _call_graph_mermaid(
 
 
 def _call_graph_dot(
-    nodes: Iterable[str], edges: Iterable[tuple[str, str]], entries: Iterable[str]
+    nodes: Iterable[str],
+    edges: Iterable[tuple[str, str]],
+    entries: Iterable[str],
 ) -> str:
     """Converte o grafo do Code2flow em DOT para as figuras do relatório."""
 
@@ -189,7 +214,61 @@ def _call_graph_dot(
 
 def _render_dot(dot_tool: str, source: Path, destination: Path) -> None:
     destination.parent.mkdir(parents=True, exist_ok=True)
-    _run((dot_tool, "-Tpdf", str(source), "-o", str(destination)))
+    with tempfile.NamedTemporaryFile(
+        prefix=f".{destination.stem}-",
+        suffix=destination.suffix,
+        dir=destination.parent,
+        delete=False,
+    ) as temporary_file:
+        temporary_destination = Path(temporary_file.name)
+    try:
+        _run((dot_tool, "-Tpdf", str(source), "-o", str(temporary_destination)))
+        temporary_destination.replace(destination)
+    finally:
+        temporary_destination.unlink(missing_ok=True)
+
+
+def _generate_experiment_workflow(dot_tool: str) -> None:
+    """Gera o fluxo conceitual que liga instâncias, execução e artefatos."""
+
+    mermaid = """\
+%% Fluxo conceitual curado; gerado por scripts/generate_diagrams.py.
+flowchart TD
+  instances["Instâncias<br/>.tsp"] --> runner["Executor do lote"]
+  runner --> worker["Worker isolado<br/>warm-start + Branch-and-Bound"]
+  worker --> save["Salvar resultado"]
+  save --> artifacts["Rota, checkpoint,<br/>JSON e log"]
+  save --> csv[("results.csv")]
+  csv --> analysis["Features, gaps<br/>e modelos"]
+  analysis --> enriched[("CSV enriquecido<br/>+ resumo")]
+"""
+    dot = """\
+// Fluxo conceitual curado; gerado por scripts/generate_diagrams.py.
+digraph workflow {
+  graph [rankdir=TB, bgcolor="transparent", pad=0.15, nodesep=0.35, ranksep=0.40];
+  node [shape=box, style="rounded,filled", fillcolor="#f8fafc",
+        color="#64748b", fontname="Helvetica", fontsize=9, margin="0.10,0.07"];
+  edge [color="#64748b", arrowsize=0.7];
+  instances [label="Instâncias\\n.tsp", fillcolor="#dbeafe", color="#2563eb"];
+  runner [label="Executor do lote"];
+  worker [label="Worker isolado\\nwarm-start + Branch-and-Bound"];
+  save [label="Salvar resultado"];
+  artifacts [label="Rota, checkpoint,\\nJSON e log"];
+  csv [label="results.csv", shape=cylinder, fillcolor="#ecfdf5", color="#059669"];
+  analysis [label="Features, gaps\\ne modelos"];
+  enriched [label="CSV enriquecido\\n+ resumo", shape=cylinder,
+            fillcolor="#ecfdf5", color="#059669"];
+  instances -> runner -> worker -> save;
+  save -> artifacts;
+  save -> csv;
+  csv -> analysis -> enriched;
+}
+"""
+    mermaid_path = OUTPUT / "workflow-experiments.mmd"
+    mermaid_path.write_text(mermaid, encoding="utf-8", newline="\n")
+    dot_path = OUTPUT / "workflow-experiments.dot"
+    dot_path.write_text(dot, encoding="utf-8", newline="\n")
+    _render_dot(dot_tool, dot_path, REPORT_FIGURES / "workflow-experiments.pdf")
 
 
 def _write_call_graph(
@@ -239,25 +318,27 @@ def _generate_code2flow(tool: str, dot_tool: str, temporary_dir: Path) -> None:
         _write_call_graph(diagram_name, all_nodes, all_edges, targets, dot_tool)
 
     # Funções autocontidas são removidas pelo recorte baseado em alvo do
-    # Code2flow. Este modo inclui explicitamente as cinco entradas para que as
-    # estratégias trivial e vizinho mais próximo também permaneçam visíveis.
-    json_output = temporary_dir / "calls-initial-strategies.json"
-    _run(
-        (
-            tool,
-            str(SOURCE),
-            "--language",
-            "py",
-            "--no-trimming",
-            "--include-only-functions",
-            ",".join(STRATEGY_FUNCTIONS),
-            "--output",
-            str(json_output),
-            "--quiet",
+    # Code2flow. O modo sem trimming preserva corretamente os grafos unitários
+    # da estratégia trivial e do Vizinho Mais Próximo. Cada estratégia usa uma
+    # lista própria para não misturar subrotinas compartilhadas em um grafo só.
+    for diagram_name, (entry, functions) in STRATEGY_DIAGRAMS.items():
+        json_output = temporary_dir / f"{diagram_name}.json"
+        _run(
+            (
+                tool,
+                str(SOURCE),
+                "--language",
+                "py",
+                "--no-trimming",
+                "--include-only-functions",
+                ",".join(functions),
+                "--output",
+                str(json_output),
+                "--quiet",
+            )
         )
-    )
-    nodes, edges = _read_code2flow_graph(json_output)
-    _write_call_graph("calls-initial-strategies", nodes, edges, STRATEGY_ENTRIES, dot_tool)
+        nodes, edges = _read_code2flow_graph(json_output)
+        _write_call_graph(diagram_name, nodes, edges, (entry,), dot_tool)
 
 
 def _generate_pyreverse(tool: str, dot_tool: str, temporary_dir: Path) -> None:
@@ -384,6 +465,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
     dot = str(args.dot.resolve()) if args.dot is not None else _tool_path("dot")
     OUTPUT.mkdir(parents=True, exist_ok=True)
     REPORT_FIGURES.mkdir(parents=True, exist_ok=True)
+    _generate_experiment_workflow(dot)
     with tempfile.TemporaryDirectory(prefix="tsp-diagrams-") as directory:
         temporary_dir = Path(directory)
         _generate_code2flow(code2flow, dot, temporary_dir)
