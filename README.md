@@ -5,8 +5,6 @@ Algoritmos 2 da Universidade Federal de Minas Gerais (UFMG). O trabalho aborda
 a implementação, a auditoria, a análise empírica e a otimização de algoritmos
 exatos e aproximativos para o Problema do Caixeiro Viajante (TSP) geométrico.
 
-O [enunciado do TP2](docs/assignment/tp2.pdf) está disponível neste repositório.
-
 ## Documentação oficial
 
 O artigo em [`docs/report/main.tex`](docs/report/main.tex) é a síntese
