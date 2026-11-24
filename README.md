@@ -146,7 +146,8 @@ por padrão e salva um CSV depois de cada processo isolado:
   --strategy christofides --repetitions 3
 ```
 
-Para executar as cinco estratégias sobre o mesmo painel e na mesma invocação:
+Para iniciar um novo lote com as cinco estratégias sobre o mesmo painel e na
+mesma invocação:
 
 ```powershell
 .\scripts\run_experiments.bat data\instances `
@@ -155,19 +156,21 @@ Para executar as cinco estratégias sobre o mesmo painel e na mesma invocação:
 ```
 
 Depois da coleta, as características geométricas, gaps e modelos estatísticos
-podem ser gerados sem reexecutar os algoritmos:
+podem ser gerados sem reexecutar os algoritmos. O comando abaixo reproduz a
+análise do painel otimizado usado no relatório:
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\tasks.py analysis `
-  experiments\results\current\results.csv `
-  --output-dir experiments\results\current\analysis
+  experiments\results\optimized-v5\results.csv `
+  --output-dir experiments\results\optimized-v5\analysis `
+  --known-optima-json experiments\known_optima.json
 ```
 
 O analisador nunca usa a incumbente de um timeout como ótimo. Ótimos externos
 só são aceitos por um mapa JSON indexado pelo SHA-256 da instância.
 
-Executar novamente o mesmo comando retoma o lote e pula resultados `optimal`
-ou `timeout`; `--rerun` força a repetição sem criar linha duplicada. A descrição
+Executar novamente o comando de experimentos retoma o lote e pula resultados
+`optimal` ou `timeout`; `--rerun` força a repetição sem criar linha duplicada. A descrição
 dos tempos, memória, status, arquivos e comandos de validação está em
 [experiments/README.md](experiments/README.md).
 

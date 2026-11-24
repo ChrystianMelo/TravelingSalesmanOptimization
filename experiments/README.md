@@ -1,10 +1,12 @@
 # Executor de experimentos
 
-O lote já coletado para a inicialização trivial, com configuração, tabela de
-resultados, interpretação preliminar e limitações, está documentado em
-[`docs/analysis/trivial-baseline.md`](../docs/analysis/trivial-baseline.md).
-A adaptação e a preparação do teste do limite das duas arestas estão em
-[`docs/analysis/lower-bound-two-edges.md`](../docs/analysis/lower-bound-two-edges.md).
+O painel balanceado mais recente está em
+[`results/optimized-v5/results.csv`](results/optimized-v5/results.csv): são 75
+execuções da instrumentação v5, analisadas no
+[`relatório atual`](../docs/report/main.pdf). Os documentos
+[`trivial-baseline.md`](../docs/analysis/trivial-baseline.md) e
+[`lower-bound-two-edges.md`](../docs/analysis/lower-bound-two-edges.md)
+permanecem como registros históricos das etapas anteriores.
 
 O módulo `traveling_salesman_optimization.experiment_runner` executa o
 Branch-and-Bound sequencialmente, com um processo novo para cada par
