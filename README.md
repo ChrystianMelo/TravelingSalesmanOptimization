@@ -7,15 +7,29 @@ exatos e aproximativos para o Problema do Caixeiro Viajante (TSP) geométrico.
 
 O [enunciado do TP2](docs/assignment/tp2.pdf) está disponível neste repositório.
 
-> **Estado atual:** leitura TSPLIB `EUC_2D`, Branch-and-Bound exato best-first
-> com o limite das duas arestas incidentes da Aula 12, as cinco estratégias de
-> warm-start, aproximações Twice-around-the-tree e Christofides, instrumentação
-> e executor reproduzível com timeout, checkpoints, retomada, processos
-> isolados e identificação da versão efetiva dos fontes e dependências.
+## Documentação oficial
+
+O artigo em [`docs/report/main.tex`](docs/report/main.tex) é a síntese
+científica da entrega, não a documentação canônica de uso ou implementação. As
+referências oficiais do projeto são:
+
+- este README, para instalação, execução e visão geral;
+- [arquitetura e fluxos](docs/architecture.md), para módulos, contratos e
+  diagramas;
+- [estratégias de warm-start](docs/implementation/warm-start-strategies.md),
+  para os algoritmos e suas complexidades;
+- [executor de experimentos](experiments/README.md), para protocolo, schema,
+  métricas, timeout e artefatos;
+- [`docs/analysis/`](docs/analysis/), para registros técnicos intermediários;
+- [`docs/prompts/`](docs/prompts/), para a rastreabilidade do uso de IA.
+
+O [PDF do artigo](docs/report/main.pdf) apresenta a análise e as conclusões do
+painel coletado. Em caso de divergência operacional, prevalecem o código, os
+testes e os documentos técnicos acima.
 
 ## Objetivos
 
-O trabalho deve investigar o desempenho teórico e prático das soluções, com
+O trabalho investigou o desempenho teórico e prático das soluções, com
 ênfase nas estruturas de dados, nos gargalos computacionais, na modelagem
 empírica de complexidade, na eficiência das podas e na influência das
 características geométricas e topológicas das instâncias sobre as soluções
@@ -29,7 +43,7 @@ O enunciado exige três algoritmos para o TSP:
 - algoritmo aproximativo Twice-around-the-tree;
 - algoritmo aproximativo de Christofides.
 
-O Branch-and-Bound deve ser avaliado com cinco estratégias de inicialização do
+O Branch-and-Bound foi avaliado com cinco estratégias de inicialização do
 limite superior:
 
 1. inicialização trivial (cold start) com a rota `1 -> 2 -> ... -> n -> 1`;
@@ -52,9 +66,9 @@ alterações em `src/`.
 
 ## Avaliação experimental
 
-Cada execução terá o limite de 30 minutos. Execuções interrompidas por tempo
-devem ser registradas como `NA`, preservando os contadores coletados até a
-interrupção. A avaliação deve incluir:
+Cada execução do painel recebeu o limite de 30 minutos. Execuções interrompidas
+por tempo são registradas como `NA` nos campos que exigem conclusão, preservando
+a incumbente e os contadores coletados até a interrupção. A avaliação inclui:
 
 - profiling de tempo e memória por subrotina, incluindo os gargalos da árvore
   geradora mínima e do emparelhamento perfeito quando bibliotecas de grafos
@@ -71,14 +85,35 @@ interrupção. A avaliação deve incluir:
   relacione as características das instâncias ao desempenho dos algoritmos e à
   qualidade das soluções.
 
+### Resultados atuais
+
+O painel balanceado da instrumentação v5 contém 75 execuções: 15 instâncias,
+cinco estratégias, uma repetição e limite de 1.800 segundos. Os dados estão em
+[`results.csv`](experiments/results/optimized-v5/results.csv), e a tabela com
+features, referências e gaps está em
+[`enriched_results.csv`](experiments/results/optimized-v5/analysis/enriched_results.csv).
+
+- 54 execuções (72%) provaram a otimalidade e 21 atingiram timeout;
+- a versão anterior provava 25 das mesmas 75 células;
+- dez instâncias foram resolvidas pelas cinco estratégias e uma décima primeira
+  por quatro delas;
+- o fecho convexo produziu a melhor rota inicial nas 15 instâncias e gap médio
+  de 2,15% nas 14 com ótimo de referência;
+- como solvers independentes, Christofides produziu rota de menor custo que
+  Twice-around-the-tree nas 15 comparações, com gaps médios de 9,25% e 26,45%;
+- o maior pico residente foi 11,38 GiB, portanto a pressão de memória continua
+  sendo uma limitação.
+
+Os números são descritivos: existe apenas uma repetição por célula, 21 tempos
+são censurados e os valores absolutos dependem da máquina e da carga do sistema.
+
 ## Instâncias de teste
 
-Os experimentos devem utilizar de 12 a 16 instâncias `EUC_2D` da TSPLIB, com 10
-a 75 vértices. Aproximadamente 80% das instâncias selecionadas devem ter no
-máximo 40 vértices. A faixa de 45 a 75 vértices será usada para testes de
-estresse, nos quais o algoritmo exato poderá exceder o limite de tempo enquanto
-os algoritmos aproximativos deverão permanecer viáveis. O enunciado sugere
-instâncias como `ulysses16`, `gr24`, `fri26`, `bays29`, `swiss42` e `att48`.
+O painel contém 15 instâncias `EUC_2D` da TSPLIB, com 10 a 70 vértices. Doze
+possuem no máximo 40 vértices e três pertencem à faixa de estresse de 45 a 75.
+Doze entradas são subamostras reprodutíveis de instâncias maiores e três são
+instâncias completas. A instância sintética `example_crossing`, com quatro
+vértices, é usada somente em testes e não integra o painel científico.
 
 As instâncias estão disponíveis no
 [repositório da TSPLIB](https://comopt.ifi.uni-heidelberg.de/software/TSPLIB95/)
@@ -93,10 +128,10 @@ e no [índice de instâncias TSP](https://comopt.ifi.uni-heidelberg.de/software/
 - NetworkX ou igraph apenas como bibliotecas de apoio, com profiling dos
   gargalos computacionais em nível de subrotina.
 
-Este trabalho é desenvolvido individualmente por Chrystian Melo
-(`chrystian1@ufmg.br`). Ferramentas de IA generativa são permitidas, mas seu uso
-deve ser documentado, e o autor deve compreender, auditar criticamente e
-defender tecnicamente a implementação entregue.
+Este trabalho foi desenvolvido individualmente por Chrystian Melo
+(`chrystian1@ufmg.br`). O uso de ferramentas de IA generativa, permitido pelo
+enunciado, foi documentado em [`docs/prompts/`](docs/prompts/); as decisões e
+saídas foram auditadas por testes, revisão do código e análise experimental.
 
 ## Instalação
 
@@ -170,8 +205,8 @@ O analisador nunca usa a incumbente de um timeout como ótimo. Ótimos externos
 só são aceitos por um mapa JSON indexado pelo SHA-256 da instância.
 
 Executar novamente o comando de experimentos retoma o lote e pula resultados
-`optimal` ou `timeout`; `--rerun` força a repetição sem criar linha duplicada. A descrição
-dos tempos, memória, status, arquivos e comandos de validação está em
+`optimal` ou `timeout`; `--rerun` força a repetição sem criar linha duplicada.
+A descrição dos tempos, memória, status, arquivos e comandos de validação está em
 [experiments/README.md](experiments/README.md).
 
 ### Contadores do Branch-and-Bound
@@ -182,8 +217,9 @@ Os contadores possuem as seguintes definições:
   dominados antes do cálculo do limite inferior;
 
 - `nós podados` inclui estados descartados pelo limite inferior, por dominância
-  de um prefixo de custo menor ou igual que alcança o mesmo estado e, ao concluir a prova,
-  a fronteira restante cujo menor limite já não melhora a incumbente;
+  de um prefixo de custo menor ou igual que alcança o mesmo estado e, ao
+  concluir a prova, a fronteira restante cujo menor limite já não melhora a
+  incumbente;
 
 - `nós expandidos` aumenta quando um estado parcial é retirado da fila e gera
   filhos. Uma folha completa é avaliada, mas não é expandida.
@@ -222,6 +258,7 @@ pushes e pull requests.
 │   └── instances/           # Instâncias selecionadas da TSPLIB
 ├── docs/
 │   ├── assignment/          # Enunciado do trabalho
+│   ├── analysis/            # Baselines e análises técnicas intermediárias
 │   ├── diagrams/            # Diagramas de arquitetura gerados
 │   ├── implementation/      # Decisões e detalhes dos algoritmos
 │   ├── prompts/             # Histórico obrigatório de prompts de IA
@@ -239,20 +276,23 @@ pushes e pull requests.
 └── pyproject.toml
 ```
 
-## Relatório e entregáveis
+## Artigo científico e entregáveis
 
-A entrega final deve incluir todos os arquivos-fonte, a base de métricas
+A entrega final reúne todos os arquivos-fonte, a base de métricas
 coletadas — tempos, memória, características das instâncias e estatísticas de
-poda — e o relatório científico em PDF e em código-fonte LaTeX. O relatório
-deve seguir o formato de artigo da SBC e conter introdução; implementação,
+poda — e o artigo científico em PDF e em código-fonte LaTeX. O artigo segue o
+formato da SBC e contém introdução; implementação,
 profiling e auditoria; experimentos e resultados modelados; e conclusões.
 
-A discussão da implementação deve justificar as estruturas de dados e a
-estratégia de exploração da árvore, documentar refatorações críticas de código
-produzido com auxílio de IA e explicar como o profiling identificou subrotinas
-caras e problemas de memória. Caso LLMs sejam utilizadas, também é obrigatório
-entregar um anexo com o histórico de prompts.
+A discussão justifica as estruturas de dados e a estratégia de exploração da
+árvore, documenta refatorações críticas do código produzido com auxílio de IA e
+explica como o profiling identificou subrotinas caras e problemas de memória.
+O histórico de prompts integra a documentação entregue.
 
-A entrega será feita por um repositório no GitHub. O prazo informado no
-enunciado é **24 de novembro de 2026, às 23h59**, sem aceitação de trabalhos
-atrasados.
+O artigo está disponível em [`docs/report/main.pdf`](docs/report/main.pdf), com
+fonte em [`docs/report/main.tex`](docs/report/main.tex). Ele registra a análise
+científica da versão entregue; instruções operacionais e contratos técnicos
+permanecem nos documentos oficiais listados no início deste README.
+
+A entrega está finalizada e organizada neste repositório. O prazo informado no
+enunciado é **24 de novembro de 2026, às 23h59**.
