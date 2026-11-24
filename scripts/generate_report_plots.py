@@ -1,4 +1,4 @@
-"""Gera os graficos de regressao do relatorio a partir do CSV preservado da v5.
+"""Gera os gráficos de regressão do relatório a partir do painel final.
 
 O arquivo de saida usa apenas o ambiente ``picture`` do LaTeX para manter a
 figura vetorial sem acrescentar uma dependencia de plotagem ao projeto.
@@ -14,7 +14,7 @@ from pathlib import Path
 from statistics import median
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / "experiments" / "results" / "optimized-v5" / "results.csv"
+SOURCE = ROOT / "experiments" / "results" / "final" / "results.csv"
 OUTPUT = ROOT / "docs" / "report" / "figures" / "complexity-regressions.tex"
 EXPECTED_SHA256 = "0fa7992af87a84ff8eee41614bf6f5e9b07ecbbae2682d09f249b53fc2cda345"
 
@@ -31,7 +31,7 @@ def _read_rows() -> list[dict[str, str]]:
     with SOURCE.open(encoding="utf-8", newline="") as stream:
         rows = list(csv.DictReader(stream))
     if len(rows) != 75:
-        raise RuntimeError(f"esperadas 75 linhas na v5, encontradas {len(rows)}")
+        raise RuntimeError(f"esperadas 75 linhas na versão final, encontradas {len(rows)}")
     return rows
 
 
