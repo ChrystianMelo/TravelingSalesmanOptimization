@@ -82,6 +82,26 @@ class _DeadlineExceeded(Exception):
     """Sinal interno para encerrar a busca em um ponto cooperativo."""
 
 
+@dataclass(frozen=True, slots=True)
+class _RouteNode:
+    """Representa um prefixo por compartilhamento estrutural com seu pai."""
+
+    vertex: int
+    parent: _RouteNode | None
+    depth: int
+
+
+def _materialize_route(node: _RouteNode) -> tuple[int, ...]:
+    """Reconstrói uma rota somente quando ela se torna a incumbente."""
+
+    route = [0] * (node.depth + 1)
+    current: _RouteNode | None = node
+    while current is not None:
+        route[current.depth] = current.vertex
+        current = current.parent
+    return tuple(route)
+
+
 def _incident_vertices_by_cost(
     distances: tuple[tuple[int, ...], ...],
 ) -> tuple[tuple[int, ...], ...]:
@@ -361,25 +381,39 @@ def solve_branch_and_bound(
         all_except_origin = ((1 << dimension) - 1) ^ 1
         root_bound = lower_bound(0, all_except_origin, 0)
         insertion_order = count()
-        frontier: list[tuple[int, int, int, int, int, tuple[int, ...]]] = []
+        root_node = _RouteNode(vertex=0, parent=None, depth=0)
+        # Prefixos que chegam ao mesmo (vértice atual, conjunto restante)
+        # possuem exatamente as mesmas continuações. Logo, somente o menor
+        # custo parcial pode levar a uma solução melhor.
+        best_state_cost: dict[tuple[int, int], int] = {(0, all_except_origin): 0}
+        frontier: list[tuple[int, int, int, int, _RouteNode]] = []
         heappush(
             frontier,
-            (root_bound, next(insertion_order), 0, all_except_origin, 0, (0,)),
+            (root_bound, next(insertion_order), all_except_origin, 0, root_node),
         )
         generated_nodes += 1
 
         while frontier:
             check_deadline()
             maybe_checkpoint()
-            bound, _, current, remaining_mask, cost_so_far, partial_route = heappop(frontier)
+            bound, _, remaining_mask, cost_so_far, route_node = heappop(frontier)
+            current = route_node.vertex
 
-            if bound >= best_cost:
+            # Uma rota de menor custo pode ter alcançado o mesmo estado depois
+            # que esta entrada foi inserida na heap.
+            if cost_so_far != best_state_cost.get((current, remaining_mask)):
                 pruned_nodes += 1
                 continue
 
+            if bound >= best_cost:
+                # Como este é o menor limite da heap, toda a fronteira restante
+                # também está provadamente dominada pela incumbente.
+                pruned_nodes += len(frontier) + 1
+                break
+
             if remaining_mask == 0:
                 best_cost = bound
-                best_route = partial_route
+                best_route = _materialize_route(route_node)
                 continue
 
             expanded_nodes += 1
@@ -391,19 +425,35 @@ def solve_branch_and_bound(
 
                 child_remaining = remaining_mask ^ next_bit
                 child_cost = cost_so_far + distances[current][next_vertex]
-                child_bound = lower_bound(next_vertex, child_remaining, child_cost)
-                child_route = partial_route + (next_vertex,)
-                max_depth = max(max_depth, len(child_route) - 1)
+                child_depth = route_node.depth + 1
+                max_depth = max(max_depth, child_depth)
                 generated_nodes += 1
+
+                child_state = (next_vertex, child_remaining)
+                previous_cost = best_state_cost.get(child_state)
+                if previous_cost is not None and child_cost >= previous_cost:
+                    pruned_nodes += 1
+                    continue
+                best_state_cost[child_state] = child_cost
+
+                child_bound = lower_bound(next_vertex, child_remaining, child_cost)
+                if child_bound >= best_cost:
+                    pruned_nodes += 1
+                    continue
+
+                child_node = _RouteNode(
+                    vertex=next_vertex,
+                    parent=route_node,
+                    depth=child_depth,
+                )
                 heappush(
                     frontier,
                     (
                         child_bound,
                         next(insertion_order),
-                        next_vertex,
                         child_remaining,
                         child_cost,
-                        child_route,
+                        child_node,
                     ),
                 )
     except _DeadlineExceeded:

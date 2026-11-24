@@ -175,17 +175,21 @@ dos tempos, memória, status, arquivos e comandos de validação está em
 
 Os contadores possuem as seguintes definições:
 
-- `nós gerados` conta a raiz e cada filho cujo lower bound foi calculado;
+- `nós gerados` conta a raiz e cada filho considerado, inclusive filhos
+  dominados antes do cálculo do limite inferior;
 
-- `nós podados` aumenta quando o limite inferior do estado é maior ou igual ao
-  custo da melhor rota conhecida; seus descendentes não são gerados;
-- `nós expandidos` aumenta quando um estado parcial passa pelo teste do limite
-  e seus filhos são gerados. Uma folha completa que melhora a solução é
-  avaliada, mas não é expandida nem podada, pois não possui filhos.
+- `nós podados` inclui estados descartados pelo limite inferior, por dominância
+  de um prefixo de custo menor ou igual que alcança o mesmo estado e, ao concluir a prova,
+  a fronteira restante cujo menor limite já não melhora a incumbente;
+
+- `nós expandidos` aumenta quando um estado parcial é retirado da fila e gera
+  filhos. Uma folha completa é avaliada, mas não é expandida.
 
 O estado inicial também segue essas regras. A igualdade pode ser podada porque
 já existe uma rota incumbente com o mesmo custo, e a busca procura uma melhora.
-Assim, `gerados` não é, em geral, a soma de `expandidos` e `podados`.
+Como a dominância pode agir antes do limite, `lower_bound_calls` pode ser menor
+que `generated_nodes`; `gerados` também não é, em geral, a soma de `expandidos`
+e `podados`.
 
 ## Testes e qualidade do código
 

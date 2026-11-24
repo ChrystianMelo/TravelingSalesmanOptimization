@@ -59,9 +59,11 @@ O solver usa exclusivamente o limite das duas arestas incidentes apresentado
 na Aula 12. A configuração canônica registra `lower_bound: "two_edges"`; não há
 opção de linha de comando para selecionar outro limite. O schema 3 removeu as
 colunas legadas da AGM. O schema 4 acrescenta impressão digital dos fontes,
-runtime e dependências, nós gerados e profiling das aproximações. Resultados
-dos schemas 1 a 3 continuam intactos, mas uma nova execução deve usar outra
-pasta de saída (ou um CSV previamente migrado).
+runtime e dependências, nós gerados e profiling das aproximações. Dentro desse
+schema, `instrumentation_version=5` identifica a semântica atual: dominância de
+estados, poda antes da heap e contagem de todo filho considerado como gerado.
+Resultados dos schemas 1 a 3 continuam intactos, mas uma nova execução deve
+usar outra pasta de saída (ou um CSV previamente migrado).
 
 ## Arquivos produzidos
 
@@ -106,15 +108,19 @@ Portanto, tempos de limite inferior e checkpoint não devem ser somados ao
 tempo de busca. `lower_bound_calls` conta chamadas iniciadas, e
 `lower_bound_seconds` contém todo o custo do LB das duas arestas.
 
-Cada estado removido da fila incrementa no máximo um dos contadores:
-`expanded_nodes` quando gera filhos e `pruned_nodes` quando seu limite é maior
-ou igual à incumbente. Folhas viáveis não são expansões. `max_depth` é o maior
-número de arestas escolhidas depois da origem (raiz zero, ciclo completo
-`n - 1`).
+`expanded_nodes` conta estados removidos da fila que geram filhos.
+`pruned_nodes` inclui estados descartados por limite inferior, por dominância
+de outro prefixo que alcança o mesmo `(vértice atual, conjunto restante)` com
+custo menor ou igual e, ao concluir a prova, os estados remanescentes cuja chave na heap
+já é maior ou igual à incumbente. Folhas viáveis não são expansões.
+`max_depth` é o maior número de arestas escolhidas depois da origem (raiz zero,
+ciclo completo `n - 1`).
 
-`generated_nodes` conta a raiz e cada filho construído e limitado. Ele inclui
-folhas completas e estados ainda presentes na fronteira no instante de um
-timeout, portanto não é a soma de expandidos e podados.
+`generated_nodes` conta a raiz e cada filho considerado. Um filho dominado é
+descartado antes do cálculo do limite, enquanto um filho cujo limite não pode
+melhorar a incumbente é descartado antes da inserção na heap. Por isso,
+`lower_bound_calls` pode ser menor que `generated_nodes`, e o total gerado não
+é necessariamente a soma de expandidos e podados.
 
 `mst_*`, `matching_*`, `eulerian_circuit_*` e `shortcut_*` medem chamadas e
 tempo das fases executadas durante o warm-start. Os campos
@@ -172,8 +178,11 @@ ponto de verificação, além da consulta de memória e da escrita atômica em c
 checkpoint. O custo de persistência aparece em `checkpoint_seconds`, mas, por
 ser síncrono, também aumenta busca e total do solver. O intervalo padrão de 30
 segundos mantém esse efeito pequeno em buscas longas. Processos isolados têm
-custo de startup, visível apenas em `executor_wall_seconds`. A ordem da fila, o
-limite, a regra de poda e a geração dos filhos não foram alterados.
+custo de startup, visível apenas em `executor_wall_seconds`. A instrumentação
+v5 preserva a fila best-first e o limite das duas arestas, mas altera a regra de
+poda e a geração efetivamente enfileirada ao acrescentar dominância e descarte
+antes da heap; por isso, comparações históricas devem observar a versão e a
+impressão digital registradas.
 
 ## Validação curta
 

@@ -129,6 +129,19 @@ def test_branch_and_bound_accepts_a_replaceable_warm_start() -> None:
     assert result.cost == 40
 
 
+def test_state_dominance_skips_bounds_for_worse_equivalent_prefixes() -> None:
+    instance = make_euclidean_instance(
+        ((10, 4), (12, 20), (1, 2), (26, 17), (3, 11), (18, 1), (29, 16), (6, 1))
+    )
+
+    result = solve_branch_and_bound(instance)
+
+    assert result.status == "optimal"
+    assert result.cost == brute_force_optimal_cost(instance)
+    # Filhos dominados contam como gerados, mas são descartados antes do LB.
+    assert result.generated_nodes > result.lower_bound_calls
+
+
 def test_instrumentation_uses_nested_monotonic_durations() -> None:
     instance = make_euclidean_instance(((0, 0), (10, 10), (0, 10), (10, 0)))
 

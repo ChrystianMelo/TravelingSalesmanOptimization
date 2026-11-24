@@ -541,7 +541,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
         "checkpoint_interval_seconds": args.checkpoint_interval_seconds,
         "external_grace_seconds": args.external_grace_seconds,
         "duration_clock": "time.perf_counter (monotonic)",
-        "instrumentation_version": 4,
+        "instrumentation_version": 5,
         "implementation_fingerprint": _implementation_fingerprint(root),
         "runtime": {
             "python_version": platform.python_version(),
